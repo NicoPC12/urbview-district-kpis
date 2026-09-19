@@ -59,6 +59,11 @@ included. **Data source:** Overture Maps, and nothing else.
    geometry is a bug even if it runs.
 8. **Real commit history.** Conventional Commits, small and logical. One `initial commit`
    containing the whole project is explicitly called out as a failure in the brief.
+9. **Every ST_Transform passes `always_xy := true`.** EPSG:4326 is officially
+   (lat, lon) and DuckDB honours that, so ST_Transform(ST_Point(lon, lat), ...)
+   without the flag silently swaps the axes and returns plausible, wrong
+   coordinates. Verified in Phase 1: Barcelona lands ~4 700 km from itself.
+   A transform without the flag is a bug even when the numbers look reasonable.
 
 ---
 
