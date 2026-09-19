@@ -1,0 +1,113 @@
+# ---------------------------------------------------------------------------
+# Data — NEVER committed.
+# The brief is explicit: commit the extraction script, not the data.
+# Everything under data/ is reproducible via `make load-data` / `make extract`.
+# ---------------------------------------------------------------------------
+data/
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.geojson
+*.geojsonseq
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+
+# Exception: tiny synthetic fixtures used by the KPI tests are intentionally
+# tracked. They must stay small enough to read by hand.
+!backend/tests/fixtures/**/*.geojson
+
+# ---------------------------------------------------------------------------
+# Secrets and local config
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------------------------------------------------------------------------
+# Python / Django
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+.eggs/
+.installed.cfg
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+
+# Django runtime
+*.log
+db.sqlite3
+db.sqlite3-journal
+/backend/staticfiles/
+/backend/media/
+
+# Jupyter — throwaway Phase 0 reconnaissance notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# ---------------------------------------------------------------------------
+# Node / Vite / React
+# ---------------------------------------------------------------------------
+node_modules/
+/frontend/dist/
+/frontend/dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# Vitest
+/frontend/coverage/
+
+# ---------------------------------------------------------------------------
+# Generated, but intentionally TRACKED — listed here as a reminder, not ignored.
+# frontend/src/api/schema.gen.ts is committed on purpose so a clean clone type
+# checks without running `make types` first.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Editors and OS
+# ---------------------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# Walkthrough working files — the exported PDF IS committed
+# ---------------------------------------------------------------------------
+/walkthrough/*
+!/walkthrough/*.pdf
+!/walkthrough/*.md
+!/walkthrough/assets/
