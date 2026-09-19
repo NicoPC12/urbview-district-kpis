@@ -22,22 +22,27 @@ make load-data              # 2. fetch the prepared Overture extract and build d
 ```
 
 Measured on a machine with no cached images: cold `docker compose up --build` **2 min 50 s**
-(+ ~10 s to healthy); `make load-data` **~1 min** when the release asset is reachable, or
-**~10 min** when it falls back to pulling from Overture's S3 bucket (see "Data" below).
+(+ ~10 s to healthy); `make load-data` **9 s** from the release asset, or **~11 min** if it
+has to fall back to pulling from Overture's S3 bucket (see "Data" below).
 
 ### Data
 
 Overture Maps is the only source. `make load-data` downloads a **prepared extract** — the exact
 output of `make extract`, 6.8 MB across six Parquet files — from a GitHub Release asset,
 verifies each file against the SHA-256 in [`backend/pipeline/manifest.json`](backend/pipeline/manifest.json),
-then builds `data/warehouse.duckdb` (10.5 MB, ~2 s). Nothing large is in Git history and the
-reviewer is not waiting on S3.
+then builds `data/warehouse.duckdb` (10.5 MB, ~2 s).
+
+The asset lives in a separate, public, data-only repository,
+[`NicoPC12/urbview-data`](https://github.com/NicoPC12/urbview-data): the data is not in this
+repository because the brief says to commit the extraction script and not the data, and it is
+not behind auth because this repository is private and the reviewer's load must work over
+plain HTTPS with nothing to configure.
 
 - `make extract` re-runs the real pull from `s3://overturemaps-us-west-2` (release pinned in
   [`backend/pipeline/release.py`](backend/pipeline/release.py)), then builds. ~10 min: the cost
   is S3 row-group scanning, not bytes.
-- If the release asset cannot be downloaded (private repository, no token), `make load-data`
-  falls back to that pull automatically.
+- If the release asset cannot be downloaded (offline, or the data repository is gone),
+  `make load-data` falls back to that pull automatically, printing progress every 30 s.
 - `make warehouse` rebuilds the warehouse from `data/raw/` without downloading.
 - `make publish-extract` (maintainer) uploads `data/raw/*.parquet` and rewrites the manifest.
 

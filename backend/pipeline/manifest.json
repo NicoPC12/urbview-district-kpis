@@ -1,8 +1,8 @@
 {
   "release_tag": "data-2026-08-19.0",
   "overture_release": "2026-08-19.0",
-  "base_url": "https://github.com/NicoPC12/urbview-district-kpis/releases/download/data-2026-08-19.0",
-  "written_at": "2026-09-19T19:37:16+00:00",
+  "base_url": "https://github.com/NicoPC12/urbview-data/releases/download/data-2026-08-19.0",
+  "written_at": "2026-09-19T19:57:42+00:00",
   "files": {
     "district.parquet": {
       "sha256": "d8ac5958a874ae481b3e67525454d76e89179f895d4a4462d67247b28ca71aa7",

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -100,11 +101,42 @@ def copy(con: duckdb.DuckDBPyConnection, name: str, select: str) -> float:
     tmp = target.with_suffix(".parquet.tmp")
     started = time.time()
     log(f"  {name}: pulling ...")
-    con.execute(f"COPY ({select}) TO '{tmp.as_posix()}' (FORMAT PARQUET, COMPRESSION ZSTD)")
+    with heartbeat(name, started):
+        con.execute(f"COPY ({select}) TO '{tmp.as_posix()}' (FORMAT PARQUET, COMPRESSION ZSTD)")
     tmp.replace(target)
     seconds = time.time() - started
     log(f"  {name}: {target.stat().st_size / 1e6:.1f} MB in {seconds:.0f}s")
     return seconds
+
+
+class heartbeat:  # noqa: N801 - used as a context manager, reads like one
+    """Print elapsed time every 30 s while a blocking DuckDB call runs.
+
+    A single S3 pull can take seven minutes with no output; silence that long reads as a
+    hang and gets killed.
+    """
+
+    def __init__(self, name: str, started: float, every: float = 30.0) -> None:
+        """Tick for ``name`` every ``every`` seconds, reporting time since ``started``."""
+        self.name, self.started, self.every = name, started, every
+        self.stop = threading.Event()
+        self.thread = threading.Thread(target=self.run, daemon=True)
+
+    def run(self) -> None:
+        """Tick until stopped."""
+        while not self.stop.wait(self.every):
+            elapsed = time.time() - self.started
+            log(f"  {self.name}: still pulling ... {elapsed // 60:.0f}m{elapsed % 60:02.0f}s")
+
+    def __enter__(self) -> heartbeat:
+        """Start ticking."""
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """Stop ticking."""
+        self.stop.set()
+        self.thread.join(timeout=1)
 
 
 def extract_district(con: duckdb.DuckDBPyConnection) -> tuple[float, float, float, float]:

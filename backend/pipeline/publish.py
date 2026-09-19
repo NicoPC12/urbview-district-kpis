@@ -1,9 +1,13 @@
 """Maintainer step (``make publish-extract``): publish ``data/raw/*.parquet`` as release assets.
 
-Runs on the host (needs ``gh`` and ``git``), standard library only. Creates or updates the
-GitHub release ``data-<overture release>``, uploads every raw file, then writes the committed
-``pipeline/manifest.json`` (URL + SHA-256 + size per file) that :mod:`pipeline.load_data`
-downloads and verifies against.
+Runs on the host (needs ``gh``), standard library only. Creates or updates the release
+``data-<overture release>`` **in the separate, public data repository**, uploads every raw
+file, then writes the committed ``pipeline/manifest.json`` (URL + SHA-256 + size per file)
+that :mod:`pipeline.load_data` downloads and verifies against.
+
+Why a second repository: this code repository is private, and release assets on a private
+repository cannot be fetched without a token. The data repository holds nothing but
+releases, so the reviewer's ``make load-data`` works over plain HTTPS.
 
 Usage: ``python backend/pipeline/publish.py [--tag data-2026-08-19.0] [--no-upload]``
 """
@@ -21,6 +25,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 from pipeline.release import OVERTURE_RELEASE  # noqa: E402
+
+# Public, data-only repository that hosts the release assets (see module docstring).
+DATA_REPO = "NicoPC12/urbview-data"
 
 RAW_DIR = HERE.parent.parent / "data" / "raw"
 MANIFEST = HERE / "manifest.json"
@@ -41,14 +48,6 @@ def run(*cmd: str) -> str:
     return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()  # noqa: S603
 
 
-def repo_url() -> str:
-    """``https://github.com/<owner>/<repo>`` from the origin remote."""
-    url = run("git", "remote", "get-url", "origin").removesuffix(".git")
-    if url.startswith("git@github.com:"):
-        url = "https://github.com/" + url.removeprefix("git@github.com:")
-    return url
-
-
 def upload(tag: str, paths: list[Path]) -> None:
     """Create the release if needed, then upload (or replace) every asset."""
     files = [str(p) for p in paths]
@@ -56,10 +55,14 @@ def upload(tag: str, paths: list[Path]) -> None:
         "Output of `make extract` for l'Eixample on Overture release "
         f"{OVERTURE_RELEASE}. Downloaded and checksum-verified by `make load-data`."
     )
-    exists = subprocess.run(["gh", "release", "view", tag], capture_output=True).returncode == 0  # noqa: S603, S607
+    view = ["gh", "release", "view", tag, "--repo", DATA_REPO]
+    exists = subprocess.run(view, capture_output=True).returncode == 0  # noqa: S603
     if not exists:
-        run("gh", "release", "create", tag, "--title", f"Prepared extract {tag}", "--notes", notes)
-    run("gh", "release", "upload", tag, *files, "--clobber")
+        run(
+            "gh", "release", "create", tag, "--repo", DATA_REPO,
+            "--title", f"Prepared extract {tag}", "--notes", notes,
+        )  # fmt: skip
+    run("gh", "release", "upload", tag, *files, "--repo", DATA_REPO, "--clobber")
 
 
 def main() -> int:
@@ -80,7 +83,7 @@ def main() -> int:
     manifest = {
         "release_tag": args.tag,
         "overture_release": OVERTURE_RELEASE,
-        "base_url": f"{repo_url()}/releases/download/{args.tag}",
+        "base_url": f"https://github.com/{DATA_REPO}/releases/download/{args.tag}",
         "written_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "files": {p.name: {"sha256": sha256(p), "bytes": p.stat().st_size} for p in paths},
     }
