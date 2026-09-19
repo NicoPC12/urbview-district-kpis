@@ -907,3 +907,25 @@ The rubric wants at least one share, one density and one distance, and the brief
 **Green share** is a close call for slot 5 against trees; trees win on evenness (no full cell below 752) and on map impact, green share wins on being a *share*. Either is a one-SQL-file swap later.
 
 Denominators used above, per CLAUDE.md rule 2: carriageway length (KPIs 1, 2, stretch), total road-subtype length (3), building count (4), district/polygon area (green share). All legal.
+
+---
+
+## Part 6 — Decision (2026-09-19)
+
+The set was chosen from Part 5 by the project owner. Thresholds and sources are in
+[`NOTES.md`](../NOTES.md).
+
+**Built:** `low_speed_street_share` (share) · `crossing_density` (density) ·
+`pedestrian_network_share` (share) · `green_space_distance_p50` (distance) ·
+stretch `street_tree_density` (density).
+
+**Rejected — two different reasons, both quotable:**
+
+| KPI | Reason | The number behind it |
+|---|---|---|
+| `lit_street_share` | **Coverage.** Overture carries a sample of Eixample's lamps. The value would measure where OSM mappers surveyed, not where light is, and a low reading would present as "dark street". | **236** lamps in 7.508 km²; **1 per 707 m** of street; median nearest-neighbour **11.6 m** (they sit along a few streets); **65 %** in two 1-km cells; cell `429/4581` has **58.9 km** of road and **0** lamps. |
+| `transit_stop_distance_p50` | **Saturation.** The cleanest layer in the extract (287 bus stops, 27 subway stations, all POINTs), but with no spatial variance every drawn polygon reads "excellent", so the draw-and-recompute interaction looks broken. A KPI with no variance does not inform. | Building-centroid p50 **79 m**, p90 **144 m**; **100 %** of 8,397 buildings within 300 m; subway alone p50 265 m. |
+
+`green_space_distance_p50` replaces both `transit_stop_distance_p50` and `green_share`: it
+reuses the nearest-neighbour machinery transit would have needed and varies across the
+district in a way a green *share* does not (green union is 5.9 % everywhere it is not zero).
