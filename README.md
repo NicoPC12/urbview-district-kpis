@@ -4,8 +4,9 @@ A single page showing a map of a Barcelona district next to a KPI dashboard. Dra
 polygon on the map recomputes every KPI for that polygon alone. Data source: Overture Maps,
 and nothing else.
 
-> **Status:** Phase 1 (infrastructure) complete. The map, the KPIs and the data pipeline are
-> not built yet; the page currently shows the app name and the backend health probe.
+> **Status:** Phases 0–2 complete (reconnaissance, KPI decision, extraction pipeline). The
+> warehouse builds; the KPI engine, API and map are not built yet. The page currently shows
+> the app name and the backend health probe.
 
 ## Prerequisites
 
@@ -17,11 +18,31 @@ and nothing else.
 
 ```bash
 docker compose up --build   # 1. app on http://localhost:5173, API on http://localhost:8000
-make load-data              # 2. fetch the Overture extract and build the warehouse (Phase 2)
+make load-data              # 2. fetch the prepared Overture extract and build data/warehouse.duckdb
 ```
 
-Measured cold `docker compose up --build` on a machine with no cached images: **2 min 50 s**,
-plus ~10 s until Postgres is healthy and migrations have run.
+Measured on a machine with no cached images: cold `docker compose up --build` **2 min 50 s**
+(+ ~10 s to healthy); `make load-data` **~1 min** when the release asset is reachable, or
+**~10 min** when it falls back to pulling from Overture's S3 bucket (see "Data" below).
+
+### Data
+
+Overture Maps is the only source. `make load-data` downloads a **prepared extract** — the exact
+output of `make extract`, 6.8 MB across six Parquet files — from a GitHub Release asset,
+verifies each file against the SHA-256 in [`backend/pipeline/manifest.json`](backend/pipeline/manifest.json),
+then builds `data/warehouse.duckdb` (10.5 MB, ~2 s). Nothing large is in Git history and the
+reviewer is not waiting on S3.
+
+- `make extract` re-runs the real pull from `s3://overturemaps-us-west-2` (release pinned in
+  [`backend/pipeline/release.py`](backend/pipeline/release.py)), then builds. ~10 min: the cost
+  is S3 row-group scanning, not bytes.
+- If the release asset cannot be downloaded (private repository, no token), `make load-data`
+  falls back to that pull automatically.
+- `make warehouse` rebuilds the warehouse from `data/raw/` without downloading.
+- `make publish-extract` (maintainer) uploads `data/raw/*.parquet` and rewrites the manifest.
+
+What the warehouse holds and why only that: [`backend/pipeline/build.py`](backend/pipeline/build.py)
+docstring; the reconnaissance behind the choice: [`docs/recon.md`](docs/recon.md).
 
 Useful endpoints:
 
@@ -60,7 +81,7 @@ backend/
   apps/areas/     area resolution (district | bbox | polygon)  — Phase 3
   apps/kpis/      KPI registry, engine, serializers, views     — health view today
   warehouse/      DuckDB access layer, zero Django imports     — Phase 3
-  pipeline/       Overture extraction + warehouse build        — Phase 2
+  pipeline/       release pin, recon, extract, build, load_data, publish
   tests/          pytest
 frontend/
   src/api/        typed client + hooks (schema.gen.ts arrives with `make types`)
@@ -70,8 +91,9 @@ frontend/
   src/lib/        pure helpers
   tests/          vitest + testing-library + msw
 data/             GITIGNORED — produced by `make load-data`
+docs/             recon.md — Phase 0 evidence and KPI decision
 walkthrough/      deck source + exported PDF                   — Phase 8
-docker-compose.yml, Makefile, NOTES.md (Phase 7)
+docker-compose.yml, Makefile, NOTES.md (KPI reference table, first draft)
 ```
 
 Architecture, KPI contract and conventions: see [`CLAUDE.md`](CLAUDE.md). Order of work:
@@ -89,6 +111,11 @@ Phase 1 only, so far:
   app name + backend health, with loading / error / values states and three tests.
 - Compose stack (`db`, `backend`, `frontend`) with healthcheck ordering, hot reload through
   Windows bind mounts, and a Makefile whose not-yet-implemented targets fail loudly.
+
+- Phase 0 reconnaissance against the real release ([`docs/recon.md`](docs/recon.md)), a
+  decided KPI set with verified thresholds ([`NOTES.md`](NOTES.md)), and the extraction
+  pipeline: pinned release, district-slice extract, DuckDB warehouse with R-tree indexes,
+  checksummed prepared-extract download with S3 fallback.
 
 ### Findings worth knowing before Phase 3
 
