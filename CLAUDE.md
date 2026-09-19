@@ -324,6 +324,22 @@ Every SQL file:
 - is readable: CTEs with names, no 200-character lines, a header comment stating the
   formula in words.
 
+**Clipping applies to the measured population, never to the reference universe.**
+
+- Counting and length KPIs (`crossing_density`, `pedestrian_network_share`,
+  `low_speed_street_share`) measure **only** features inside the drawn area: partial
+  segments contribute proportionally via `ST_Intersection`, points are in or out, and the
+  denominator is clipped the same way as the numerator.
+- Nearest-neighbour KPIs (`green_space_distance_p50`) clip the **population** — building
+  centroids inside the area — but search the **full warehouse** for the nearest target,
+  including targets outside the drawn polygon and outside the district. That is why
+  `build.py` keeps green spaces 1.5 km beyond the district bbox.
+
+Getting this backwards makes every small drawn polygon return null or infinity, which is
+exactly what a reviewer produces in the first thirty seconds of the demo. Every
+nearest-neighbour SQL file carries a comment saying which side of this rule it is on, and a
+test asserts that a polygon containing buildings but zero green spaces returns a finite p50.
+
 ---
 
 ## 9. Coding conventions
