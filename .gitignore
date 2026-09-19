@@ -81,6 +81,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .eslintcache
+*.tsbuildinfo
 
 # Vitest
 /frontend/coverage/

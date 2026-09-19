@@ -11,9 +11,10 @@ from .base import env
 
 DEBUG = True
 
-SECRET_KEY = env(
-    "DJANGO_SECRET_KEY",
-    default="django-insecure-dev-only-not-a-real-secret-change-in-prod",
+# `or`: compose always exports the variable, possibly empty, and empty must mean "unset".
+SECRET_KEY = (
+    env("DJANGO_SECRET_KEY", default="")
+    or "django-insecure-dev-only-not-a-real-secret-change-in-prod"
 )
 
 ALLOWED_HOSTS = ["*"]
