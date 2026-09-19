@@ -405,6 +405,8 @@ If a change puts that at risk, say so before making it.
 - One logical change per commit. Commit at each checkpoint in `PLAN.md`.
 - Commit messages in English, imperative mood, body explaining *why* when non-obvious.
 - Target: 25–40 real commits by submission.
+- **Push after every finished task.** When a task or phase is done, `git push` everything
+  before reporting. Unpushed work does not exist for the reviewer.
 
 ---
 
