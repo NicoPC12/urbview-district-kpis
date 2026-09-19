@@ -1,0 +1,32 @@
+{
+  "release_tag": "data-2026-08-19.0",
+  "overture_release": "2026-08-19.0",
+  "base_url": "https://github.com/NicoPC12/urbview-district-kpis/releases/download/data-2026-08-19.0",
+  "written_at": "2026-09-19T19:37:16+00:00",
+  "files": {
+    "district.parquet": {
+      "sha256": "d8ac5958a874ae481b3e67525454d76e89179f895d4a4462d67247b28ca71aa7",
+      "bytes": 11202
+    },
+    "segment.parquet": {
+      "sha256": "20610414523b20669327c1cfa9cbef85429b861ff5ed347861a7289faacd2c21",
+      "bytes": 1115688
+    },
+    "infrastructure.parquet": {
+      "sha256": "0798feb9e63a1dfe0d222cdda089bbf3d2fa0710b38d4b7c168340ebc981acbe",
+      "bytes": 816507
+    },
+    "land_use.parquet": {
+      "sha256": "a53a7d5f278d15f037a430cdb3b89bc5e18b3cfedeefcd1d398c129b5b6a2a74",
+      "bytes": 717349
+    },
+    "land.parquet": {
+      "sha256": "111f7b8b6865642b505fecb5696f9708c058e8106d17568029faabc4784304c1",
+      "bytes": 470819
+    },
+    "building.parquet": {
+      "sha256": "172bb45430de6e97ffadf41099d91b597eb87ac7118e890df928a9ac3183b797",
+      "bytes": 3640565
+    }
+  }
+}

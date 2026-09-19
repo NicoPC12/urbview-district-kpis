@@ -2,6 +2,10 @@
 # Every target from CLAUDE.md §11 exists. Targets whose phase has not landed exit non-zero with
 # a message naming that phase, never silently succeed.
 
+# GNU make on Windows defaults to cmd.exe; every recipe here is POSIX sh, which Git Bash
+# provides. On Linux/macOS this is a no-op.
+SHELL     := sh
+
 COMPOSE   := docker compose
 BACKEND   := $(COMPOSE) exec -T backend
 FRONTEND  := $(COMPOSE) exec -T frontend
@@ -25,18 +29,20 @@ logs: ## Tail all service logs
 	$(COMPOSE) logs -f
 
 # --- Data (Phase 2) --------------------------------------------------------------------
+# All three run inside the backend container: DuckDB + spatial + httpfs are already there.
 
-load-data: ## Fetch the prepared Overture extract and build data/warehouse.duckdb
-	@echo "make load-data: not implemented yet - lands in Phase 2 (extraction pipeline)." >&2
-	@exit 1
+load-data: ## Fetch the prepared Overture extract (release asset, checksummed) and build data/warehouse.duckdb
+	$(BACKEND) python -m pipeline.load_data
 
-extract: ## Re-run the real Overture S3 pull from scratch (slow)
-	@echo "make extract: not implemented yet - lands in Phase 2 (extraction pipeline)." >&2
-	@exit 1
+extract: ## Re-run the real Overture S3 pull from scratch (slow, ~10 min), then build
+	$(BACKEND) python -m pipeline.extract
+	$(BACKEND) python -m pipeline.build
 
-warehouse: ## Rebuild data/warehouse.duckdb from data/raw/
-	@echo "make warehouse: not implemented yet - lands in Phase 2 (extraction pipeline)." >&2
-	@exit 1
+warehouse: ## Rebuild data/warehouse.duckdb from data/raw/ (no download)
+	$(BACKEND) python -m pipeline.build
+
+publish-extract: ## Maintainer: upload data/raw/*.parquet as a GitHub release asset and refresh pipeline/manifest.json
+	python backend/pipeline/publish.py
 
 # --- Types (Phase 4) -------------------------------------------------------------------
 
