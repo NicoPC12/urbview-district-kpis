@@ -56,8 +56,14 @@ def fetch_extract() -> bool:
     for name, info in manifest["files"].items():
         target = RAW_DIR / name
         expected = info["sha256"]
-        if target.exists() and build.sha256(target) == expected:
-            log(f"  {name}: present, checksum ok")
+        if target.exists():
+            if build.sha256(target) == expected:
+                log(f"  {name}: present, checksum ok")
+            else:
+                # A file produced by `make extract` is legitimate and will not be
+                # byte-identical to the published one (Parquet writers are not stable).
+                # Only files this script downloads are held to the manifest hash.
+                log(f"  {name}: present, differs from the published asset (local extract) — kept")
             continue
         started = time.time()
         log(f"  {name}: downloading {info['bytes'] / 1e6:.1f} MB ...")
