@@ -1,1 +1,1 @@
-"""Django applications. Each app owns one concern: ``areas`` resolves geometry, ``kpis`` computes."""
+"""Django applications. One concern per app: ``areas`` resolves geometry, ``kpis`` computes."""

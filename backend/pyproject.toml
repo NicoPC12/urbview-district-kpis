@@ -1,0 +1,87 @@
+[project]
+name = "urbview-backend"
+version = "0.1.0"
+description = "UrbView take-home: KPI dashboard backend (Django + DRF + DuckDB)."
+requires-python = ">=3.12"
+dependencies = [
+    "django==5.2.17",
+    "djangorestframework==3.18.1",
+    "drf-spectacular==0.30.0",
+    "django-environ==0.14.0",
+    "psycopg[binary]==3.3.6",
+    "duckdb==1.5.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff==0.16.8",
+    "mypy==1.19.1",
+    "pytest==9.1.1",
+    "pytest-django==4.14.0",
+    "django-stubs==5.2.9",
+    "djangorestframework-stubs==3.16.9",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["config*", "apps*", "warehouse*", "pipeline*"]
+
+# ---------------------------------------------------------------------------
+# ruff — lint + format, line length 100 (CLAUDE.md §9)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "D", "ANN", "N"]
+ignore = [
+    "D203",  # one-blank-line-before-class (conflicts with D211)
+    "D213",  # multi-line-summary-second-line (conflicts with D212)
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "ANN"]
+"config/settings/*" = ["D"]
+"manage.py" = ["D"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict on warehouse/ and apps/kpis/ (CLAUDE.md §9)
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+files = ["config", "apps", "warehouse", "pipeline"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+check_untyped_defs = true
+exclude = ["migrations/"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings.dev"
+
+[[tool.mypy.overrides]]
+module = ["warehouse.*", "apps.kpis.*"]
+strict = true
+
+[[tool.mypy.overrides]]
+# django-environ ships no type information; settings are the only place it is imported.
+module = ["config.settings.*"]
+disable_error_code = ["import-untyped"]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers"
