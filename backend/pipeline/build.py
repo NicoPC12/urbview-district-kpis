@@ -17,7 +17,9 @@ Only what the five KPIs need is loaded (see ``docs/recon.md`` Part 6 and ``NOTES
 - ``trees``         ``land`` points, ``class = 'tree'``
 - ``meta``          release, build time, source checksums
 
-Rebuilding is idempotent: the file is written to a temporary path and swapped in.
+Tables are created from ``warehouse/schema.sql`` — the same DDL the test fixtures use — and
+then filled with ``INSERT ... SELECT``. Rebuilding is idempotent: the file is written to a
+temporary path and swapped in.
 ``access_restrictions`` is deliberately not loaded — no KPI reads it, and Phase 0 showed its
 dominant entry is a one-way rule that naive logic misreads as a closure (NOTES.md).
 """
@@ -34,7 +36,9 @@ import duckdb
 
 from pipeline.release import OVERTURE_RELEASE
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+SCHEMA = BACKEND_DIR / "warehouse" / "schema.sql"
+DATA_DIR = BACKEND_DIR.parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 WAREHOUSE = DATA_DIR / "warehouse.duckdb"
 
@@ -93,12 +97,12 @@ def check_inputs() -> None:
 def build(con: duckdb.DuckDBPyConnection) -> None:
     """Create every warehouse table from the raw extract."""
     con.execute("LOAD spatial")
+    con.execute(SCHEMA.read_text(encoding="utf-8"))
 
     con.execute(
         f"""
-        CREATE TABLE district AS
-        SELECT id, name, geometry AS geom, {transform("geometry")} AS geom_m,
-               ST_Area({transform("geometry")}) AS area_m2
+        INSERT INTO district
+        SELECT id, name, geometry, {transform("geometry")}, ST_Area({transform("geometry")})
         FROM {raw("district")}
         """
     )
@@ -107,7 +111,7 @@ def build(con: duckdb.DuckDBPyConnection) -> None:
     # else the first rule. Only km/h is kept; the district has no other unit (Phase 0).
     con.execute(
         f"""
-        CREATE TABLE segments AS
+        INSERT INTO segments
         WITH src AS (
             SELECT s.id, s.name, s.class, s.subclass, s.geometry,
                    coalesce(
@@ -118,22 +122,20 @@ def build(con: duckdb.DuckDBPyConnection) -> None:
             WHERE s.subtype = 'road' AND ST_Intersects(s.geometry, d.geometry)
         )
         SELECT id, name, class, subclass,
-               class NOT IN ({sql_list(NON_CARRIAGEWAY_CLASSES)}) AS is_carriageway,
-               class IN ({sql_list(PEDESTRIAN_CLASSES)}) AS is_pedestrian,
-               CASE WHEN rule.max_speed.unit = 'km/h' THEN rule.max_speed.value END
-                 AS max_speed_kmh,
-               rule.max_speed.value IS NOT NULL AND rule.max_speed.unit = 'km/h'
-                 AS has_speed_limit,
-               ST_Length({transform("geometry")}) AS length_m,
-               geometry AS geom, {transform("geometry")} AS geom_m
+               class NOT IN ({sql_list(NON_CARRIAGEWAY_CLASSES)}),
+               class IN ({sql_list(PEDESTRIAN_CLASSES)}),
+               CASE WHEN rule.max_speed.unit = 'km/h' THEN rule.max_speed.value END,
+               rule.max_speed.value IS NOT NULL AND rule.max_speed.unit = 'km/h',
+               ST_Length({transform("geometry")}),
+               geometry, {transform("geometry")}
         FROM src
         """
     )
 
     con.execute(
         f"""
-        CREATE TABLE crossings AS
-        SELECT i.id, i.geometry AS geom, {transform("i.geometry")} AS geom_m
+        INSERT INTO crossings
+        SELECT i.id, i.geometry, {transform("i.geometry")}
         FROM {raw("infrastructure")} i, {raw("district")} d
         WHERE i.subtype = 'transportation' AND i.class = 'crossing'
           AND ST_GeometryType(i.geometry) = 'POINT'
@@ -145,11 +147,11 @@ def build(con: duckdb.DuckDBPyConnection) -> None:
     # outside it. The extract already limited these to the district bbox + 1.5 km.
     con.execute(
         f"""
-        CREATE TABLE green_spaces AS
+        INSERT INTO green_spaces
         SELECT id, name, subtype, class,
-               ST_Area({transform("geometry")}) AS area_m2,
-               ST_Area({transform("geometry")}) >= {WHO_MIN_GREEN_M2} AS is_who_size,
-               geometry AS geom, {transform("geometry")} AS geom_m
+               ST_Area({transform("geometry")}),
+               ST_Area({transform("geometry")}) >= {WHO_MIN_GREEN_M2},
+               geometry, {transform("geometry")}
         FROM {raw("land_use")}
         WHERE ST_GeometryType(geometry) IN ('POLYGON', 'MULTIPOLYGON')
         """
@@ -157,10 +159,9 @@ def build(con: duckdb.DuckDBPyConnection) -> None:
 
     con.execute(
         f"""
-        CREATE TABLE buildings AS
+        INSERT INTO buildings
         SELECT b.id, b.subtype, b.class,
-               ST_Centroid(b.geometry) AS geom,
-               ST_Centroid({transform("b.geometry")}) AS geom_m
+               ST_Centroid(b.geometry), ST_Centroid({transform("b.geometry")})
         FROM {raw("building")} b, {raw("district")} d
         WHERE ST_Intersects(b.geometry, d.geometry)
         """
@@ -168,20 +169,14 @@ def build(con: duckdb.DuckDBPyConnection) -> None:
 
     con.execute(
         f"""
-        CREATE TABLE trees AS
-        SELECT t.id, t.geometry AS geom, {transform("t.geometry")} AS geom_m
+        INSERT INTO trees
+        SELECT t.id, t.geometry, {transform("t.geometry")}
         FROM {raw("land")} t, {raw("district")} d
         WHERE t.class = 'tree' AND ST_GeometryType(t.geometry) = 'POINT'
           AND ST_Intersects(t.geometry, d.geometry)
         """
     )
 
-    # R-tree on the metric geometry: every KPI predicate is `ST_Intersects(geom_m, <constant
-    # area polygon>)`, which is exactly the shape DuckDB's R-tree can serve.
-    for table in ("segments", "crossings", "green_spaces", "buildings", "trees"):
-        con.execute(f"CREATE INDEX {table}_geom_m_rtree ON {table} USING RTREE (geom_m)")
-
-    con.execute("CREATE TABLE meta (key VARCHAR PRIMARY KEY, value VARCHAR)")
     rows = [
         ("overture_release", OVERTURE_RELEASE),
         ("built_at", datetime.now(UTC).isoformat(timespec="seconds")),
