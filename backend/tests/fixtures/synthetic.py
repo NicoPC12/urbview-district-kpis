@@ -10,13 +10,15 @@ sketch it came from: "two 100 m segments, one at 30 km/h".
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import duckdb
 
 from apps.areas.resolve import AreaRequest, ResolvedArea, resolve
 from warehouse import area as warehouse_area
-from warehouse.connection import connect_memory, transform_to_deg
+from warehouse.connection import SCHEMA_PATH, connect_memory, transform_to_deg
 
 # Local origin in EPSG:25831 (metres); (0, 0) on the grid is this point.
 X0, Y0 = 430_000.0, 4_582_000.0
@@ -42,6 +44,14 @@ def point_wkt_m(x: float, y: float) -> str:
     return f"POINT({X0 + x} {Y0 + y})"
 
 
+def _create_file(path: Path) -> duckdb.DuckDBPyConnection:
+    """A new, empty warehouse file with the production schema (what build.py produces)."""
+    con = duckdb.connect(str(path))
+    con.execute("LOAD spatial")
+    con.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return con
+
+
 def geoms(wkt_m: str) -> str:
     """SQL producing ``(geom, geom_m)`` from a metric WKT literal (already validated input)."""
     m = f"ST_GeomFromText('{wkt_m}')"
@@ -49,17 +59,30 @@ def geoms(wkt_m: str) -> str:
 
 
 class SyntheticWarehouse:
-    """An in-memory warehouse with the production schema and a 2 km square district."""
+    """An in-memory warehouse with the production schema and a 2 km square district.
 
-    def __init__(self) -> None:
-        self.con: duckdb.DuckDBPyConnection = connect_memory()
+    Pass a not-yet-existing ``path`` to build a real file instead (for tests of the
+    process-wide handle, which needs a file to ``stat``); ``close()`` it before a reader opens it.
+    """
+
+    DISTRICT_ID = "district-1"
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.con: duckdb.DuckDBPyConnection = (
+            connect_memory() if path is None else _create_file(path)
+        )
         self._n = 0
         district = box_wkt_m(0, 0, DISTRICT_SIZE_M, DISTRICT_SIZE_M)
         self.con.execute(
-            f"INSERT INTO district SELECT 'district-1', 'Test district', {geoms(district)}, "
-            f"ST_Area(ST_GeomFromText('{district}'))"
+            f"INSERT INTO district SELECT '{self.DISTRICT_ID}', 'Test district', "
+            f"{geoms(district)}, ST_Area(ST_GeomFromText('{district}'))"
         )
         self.con.execute("INSERT INTO meta VALUES ('overture_release', 'synthetic')")
+        self.con.execute("INSERT INTO meta VALUES ('built_at', ?)", [datetime.now(UTC).isoformat()])
+
+    def close(self) -> None:
+        """Release the file so another connection can open it read-only."""
+        self.con.close()
 
     def _id(self, prefix: str) -> str:
         self._n += 1
@@ -134,7 +157,7 @@ class SyntheticWarehouse:
     def area(self, xmin: float, ymin: float, xmax: float, ymax: float) -> ResolvedArea:
         """Resolve and register a rectangular request area given in grid metres."""
         polygon = self.geojson(box_wkt_m(xmin, ymin, xmax, ymax))
-        resolved = resolve(self.con, AreaRequest(polygon=polygon))
+        resolved = resolve(self.con, AreaRequest(polygon=polygon), {})
         warehouse_area.register_area(self.con, resolved.wkt)
         return resolved
 
