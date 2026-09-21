@@ -29,7 +29,6 @@ by_class AS (
     FROM clipped
     WHERE len_m > 0
     GROUP BY class
-    ORDER BY len_m DESC
 ),
 sums AS (
     SELECT coalesce(sum(len_m), 0)                               AS all_m,
@@ -40,7 +39,10 @@ sums AS (
 )
 SELECT CASE WHEN all_m > 0 THEN 100.0 * ped_m / all_m END           AS value,
        n                                                            AS sample_size,
-       (SELECT list({'key': class, 'label': class, 'value': CAST(len_m / 1000 AS DOUBLE)})
+       -- Longest class first, name as tie-break: the order is part of the contract (the
+       -- chart and the cache compare it), so it must not depend on aggregation threads.
+       (SELECT list({'key': class, 'label': class, 'value': CAST(len_m / 1000 AS DOUBLE)}
+                    ORDER BY len_m DESC, class)
         FROM by_class)                                              AS breakdown,
        [
            {'key': 'pedestrian_km', 'label': 'Pedestrian-only network',
