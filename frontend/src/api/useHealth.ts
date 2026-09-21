@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 
-import { fetchHealth, type HealthStatus } from './client';
+import { fetchHealth } from './client';
+import type { Health } from './schema.gen';
 
 /** Discriminated request state for the health probe. */
 export type HealthState =
-  { kind: 'loading' } | { kind: 'ok'; health: HealthStatus } | { kind: 'error'; message: string };
+  { kind: 'loading' } | { kind: 'ok'; health: Health } | { kind: 'error'; message: string };
 
 /**
  * Load the backend health probe once on mount.

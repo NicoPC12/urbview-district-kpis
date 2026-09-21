@@ -44,11 +44,10 @@ warehouse: ## Rebuild data/warehouse.duckdb from data/raw/ (no download)
 publish-extract: ## Maintainer: upload data/raw/*.parquet as a GitHub release asset and refresh pipeline/manifest.json
 	python backend/pipeline/publish.py
 
-# --- Types (Phase 4) -------------------------------------------------------------------
+# --- Types -------------------------------------------------------------------
 
-types: ## Regenerate frontend/src/api/schema.gen.ts from the OpenAPI schema
-	@echo "make types: not implemented yet - lands in Phase 4 (API layer)." >&2
-	@exit 1
+types: ## Regenerate frontend/src/api/schema.gen.ts from the running backend's OpenAPI schema
+	$(FRONTEND) sh -c "OPENAPI_URL=http://backend:8000/api/schema/ npm run --silent types"
 
 # --- Quality ---------------------------------------------------------------------------
 

@@ -15,7 +15,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "types": "openapi-typescript ${OPENAPI_URL:-http://localhost:8000/api/schema/} -o src/api/schema.gen.ts --alphabetize --root-types --root-types-no-schema-prefix"
   },
   "dependencies": {
     "react": "18.3.1",
@@ -28,6 +29,7 @@
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.7",
+    "@types/geojson": "7946.0.16",
     "@types/node": "22.20.4",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
@@ -39,6 +41,7 @@
     "globals": "17.12.0",
     "jsdom": "30.1.0",
     "msw": "2.15.0",
+    "openapi-typescript": "7.13.0",
     "prettier": "3.9.8",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
