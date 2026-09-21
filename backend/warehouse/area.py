@@ -36,6 +36,11 @@ class AreaCheck:
     district_overlap_share: float
     """Share (0–1) of the polygon's area that lies inside the loaded district. The warehouse
     only holds features there, so this is the share of the drawing that has data."""
+    effective_wkt: str
+    """The polygon ∩ the district, EPSG:4326 WKT: what every KPI and layer is measured on.
+    The warehouse keeps whole geometries of features that *touch* the district, so clipping
+    to the drawn polygon alone would count the parts outside the district. Equals ``wkt``
+    when the polygon lies inside the district; empty when it lies entirely outside."""
 
 
 def inspect_area(con: duckdb.DuckDBPyConnection, wkt_4326: str) -> AreaCheck:
@@ -59,7 +64,13 @@ def inspect_area(con: duckdb.DuckDBPyConnection, wkt_4326: str) -> AreaCheck:
                    (SELECT sum(ST_Area(ST_Intersection(d.geom_m, g.geom_m))) FROM district d)
                    / nullif(ST_Area(g.geom_m), 0),
                    0
-               )
+               ),
+               -- Polygon parts only: two boundaries touching along an edge would otherwise
+               -- leave a line in a GEOMETRYCOLLECTION. Clipping is topological, so 4326 is
+               -- fine here; every metre is still measured on geom_m downstream.
+               CASE WHEN ST_IsValid(g.geom) THEN ST_AsText(ST_CollectionExtract(
+                   ST_Intersection(g.geom, (SELECT ST_Union_Agg(geom) FROM district)), 3
+               )) END
         FROM g
         """,
         [wkt_4326],
@@ -71,6 +82,7 @@ def inspect_area(con: duckdb.DuckDBPyConnection, wkt_4326: str) -> AreaCheck:
         area_m2=float(row[2]),
         n_points=int(row[3]),
         district_overlap_share=min(1.0, float(row[4])),
+        effective_wkt="" if row[5] is None else str(row[5]),
     )
 
 

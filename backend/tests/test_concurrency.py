@@ -50,7 +50,7 @@ def test_concurrent_requests_keep_their_own_area(path: Path) -> None:
         for i in range(ROUNDS):
             with handle.cursor() as con:
                 resolved = resolve(con, AreaRequest(polygon=polygon), {})
-                warehouse_area.register_area(con, resolved.wkt)
+                warehouse_area.register_area(con, resolved.effective_wkt)
                 row = run_kpi(con, SPEC_BY_KEY["low_speed_street_share"].sql)
             if row.value != expected or row.sample_size != 1:
                 failures.append(f"{name}#{i}: got {row.value} (n={row.sample_size})")

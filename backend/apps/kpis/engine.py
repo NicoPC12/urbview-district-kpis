@@ -99,7 +99,9 @@ def compute(
         with_layers: skip the GeoJSON layers (tests and timing runs).
     """
     started = time.perf_counter()
-    warehouse_area.register_area(con, area.wkt)  # once per request, not once per KPI
+    # Once per request, not once per KPI — and on the drawn ∩ district polygon, never on
+    # the raw drawing (segments that touch the district are stored whole).
+    warehouse_area.register_area(con, area.effective_wkt)
     timings: dict[str, float] = {}
     results: list[KpiResult] = []
     layers: list[Layer] = []

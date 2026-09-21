@@ -158,7 +158,7 @@ class SyntheticWarehouse:
         """Resolve and register a rectangular request area given in grid metres."""
         polygon = self.geojson(box_wkt_m(xmin, ymin, xmax, ymax))
         resolved = resolve(self.con, AreaRequest(polygon=polygon), {})
-        warehouse_area.register_area(self.con, resolved.wkt)
+        warehouse_area.register_area(self.con, resolved.effective_wkt)
         return resolved
 
     def geojson(self, wkt_m: str) -> dict[str, Any]:

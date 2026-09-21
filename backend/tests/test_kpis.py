@@ -226,6 +226,34 @@ def test_polygon_outside_the_district_is_empty_not_an_error(
     assert all(r.row.sample_size == 0 and r.row.value is None for r in response.kpis)
 
 
+def test_area_is_measured_on_the_drawn_polygon_clipped_to_the_district(
+    wh: SyntheticWarehouse, kpis: tuple[Kpi, ...]
+) -> None:
+    """Segments touching the district are stored whole; only their inside part may count."""
+    wh.segment(1_800, 100, 2_300, 100, speed=30)  # 500 m, 200 m of it inside the 2 km district
+    wh.segment(1_800, 200, 2_300, 200, speed=50)  # same, at 50
+    wh.crossing(1_900, 100)
+    wh.crossing(2_200, 100)  # outside the district: never loaded in reality, ignored here too
+    for x in range(1_815, 2_300, 10):  # none exactly on the district edge at x = 2,000
+        wh.tree(x, 90)
+
+    inside = compute(wh.con, wh.area(1_500, 0, 2_000, 400), kpis, with_layers=True)
+    around = compute(wh.con, wh.area(1_500, 0, 2_500, 400), kpis, with_layers=True)
+    contains_district = compute(wh.con, wh.area(-100, -100, 2_500, 2_500), kpis, with_layers=True)
+
+    assert around.area.district_overlap_share == pytest.approx(0.5, abs=1e-6)
+    for other in (around, contains_district):
+        for a, b in zip(inside.kpis, other.kpis, strict=True):
+            # 1e-3: the boxes round-trip through EPSG:4326, the district edge does not.
+            assert a.row.value == pytest.approx(b.row.value, abs=1e-3), a.key
+            assert a.row.sample_size == b.row.sample_size, a.key
+    crossings = next(r for r in around.kpis if r.key == "crossing_density")
+    assert crossings.row.value == pytest.approx(1 / 0.4, abs=APPROX)  # 1 crossing / 0.4 km
+    # The map matches the numbers: no returned street pokes out of the district.
+    streets = next(layer for layer in around.layers if layer.id == "streets_speed")
+    assert sorted(f["properties"]["length_m"] for f in streets.features) == [200.0, 200.0]
+
+
 def test_polygon_crossing_the_boundary_reports_its_overlap(wh: SyntheticWarehouse) -> None:
     area = wh.area(1_500, 0, 2_500, 1_000)  # 1 km x 1 km, half inside the 2 km district
     assert area.district_overlap_share == pytest.approx(0.5, abs=1e-6)

@@ -38,3 +38,27 @@ def test_district_kpis_pinned_to_two_decimals() -> None:
     assert response.meta.overture_release == "2026-08-19.0"
     actual = {k.key: (round(k.row.value or 0.0, 2), k.row.sample_size) for k in response.kpis}
     assert actual == EXPECTED
+
+
+@pytest.mark.django_db
+def test_polygon_containing_the_district_matches_the_district_to_two_decimals() -> None:
+    """The warehouse stores whole geometries of features that touch the district; a bigger
+    polygon must not count the parts outside it."""
+    kpis = definitions.load().kpis
+    with service.warehouse().cursor() as con:
+        district = compute(
+            con,
+            resolve(con, AreaRequest(district="eixample"), service.district_refs()),
+            kpis,
+            with_layers=False,
+        )
+        bigger = compute(
+            con,
+            resolve(con, AreaRequest(bbox=(2.135, 41.370, 2.195, 41.418)), {}),
+            kpis,
+            with_layers=False,
+        )
+    assert 0.2 < bigger.area.district_overlap_share < 0.5
+    for a, b in zip(district.kpis, bigger.kpis, strict=True):
+        assert round(a.row.value or 0, 2) == round(b.row.value or 0, 2), a.key
+        assert a.row.sample_size == b.row.sample_size, a.key

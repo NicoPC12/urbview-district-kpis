@@ -30,6 +30,10 @@ MAX_AREA_KM2 = 50.0
 MAX_VERTICES = 2_000
 
 
+# What a request entirely outside the district is measured on: nothing.
+EMPTY_POLYGON = "POLYGON EMPTY"
+
+
 class AreaSource(StrEnum):
     """How the area was specified."""
 
@@ -61,8 +65,12 @@ class ResolvedArea:
 
     name: str
     wkt: str
-    """EPSG:4326 WKT, normalised by DuckDB."""
+    """EPSG:4326 WKT of what the user asked for, normalised by DuckDB. The cache key."""
+    effective_wkt: str
+    """``wkt`` ∩ the district: what every KPI and layer is measured on (see
+    :class:`warehouse.area.AreaCheck`). An empty polygon when the request lies outside."""
     area_m2: float
+    """Area of ``wkt`` (what was drawn), not of the effective polygon."""
     source: AreaSource
     district_overlap_share: float
     """0–1: how much of the polygon's area lies inside the loaded district (where data is)."""
@@ -153,6 +161,7 @@ def resolve(
     return ResolvedArea(
         name=name,
         wkt=check.wkt,
+        effective_wkt=check.effective_wkt or EMPTY_POLYGON,
         area_m2=check.area_m2,
         source=source,
         district_overlap_share=check.district_overlap_share,
