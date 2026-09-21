@@ -15,7 +15,9 @@ every ``ST_Intersects`` / ``ST_Intersection`` and read the ``area`` table only f
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from typing import Any
 
 import duckdb
 
@@ -30,8 +32,10 @@ class AreaCheck:
     """Normalised EPSG:4326 WKT (as DuckDB re-serialises it)."""
     is_valid: bool
     area_m2: float
-    intersects_district: bool
-    district_name: str
+    n_points: int
+    district_overlap_share: float
+    """Share (0–1) of the polygon's area that lies inside the loaded district. The warehouse
+    only holds features there, so this is the share of the drawing that has data."""
 
 
 def inspect_area(con: duckdb.DuckDBPyConnection, wkt_4326: str) -> AreaCheck:
@@ -43,12 +47,19 @@ def inspect_area(con: duckdb.DuckDBPyConnection, wkt_4326: str) -> AreaCheck:
     """
     row = con.execute(
         f"""
-        WITH g AS (SELECT ST_GeomFromText(?) AS geom)
-        SELECT ST_AsText(geom),
-               ST_IsValid(geom),
-               CASE WHEN ST_IsValid(geom) THEN ST_Area({transform_to_m("geom")}) ELSE 0 END,
-               (SELECT bool_or(ST_Intersects(d.geom, g.geom)) FROM district d),
-               (SELECT any_value(name) FROM district)
+        WITH g AS (
+            SELECT geom, CASE WHEN ST_IsValid(geom) THEN {transform_to_m("geom")} END AS geom_m
+            FROM (SELECT ST_GeomFromText(?) AS geom)
+        )
+        SELECT ST_AsText(g.geom),
+               ST_IsValid(g.geom),
+               coalesce(ST_Area(g.geom_m), 0),
+               ST_NPoints(g.geom),
+               coalesce(
+                   (SELECT sum(ST_Area(ST_Intersection(d.geom_m, g.geom_m))) FROM district d)
+                   / nullif(ST_Area(g.geom_m), 0),
+                   0
+               )
         FROM g
         """,
         [wkt_4326],
@@ -58,8 +69,8 @@ def inspect_area(con: duckdb.DuckDBPyConnection, wkt_4326: str) -> AreaCheck:
         wkt=str(row[0]),
         is_valid=bool(row[1]),
         area_m2=float(row[2]),
-        intersects_district=bool(row[3]),
-        district_name=str(row[4]),
+        n_points=int(row[3]),
+        district_overlap_share=min(1.0, float(row[4])),
     )
 
 
@@ -87,9 +98,35 @@ def register_area(con: duckdb.DuckDBPyConnection, wkt_4326: str) -> None:
     )
 
 
-def district_wkt(con: duckdb.DuckDBPyConnection) -> tuple[str, str, float]:
-    """(name, EPSG:4326 WKT, area_m2) of the loaded district."""
-    row = con.execute("SELECT name, ST_AsText(geom), area_m2 FROM district").fetchone()
+def district_wkt(con: duckdb.DuckDBPyConnection, district_id: str) -> tuple[str, str, float]:
+    """(name, EPSG:4326 WKT, area_m2) of one loaded district by Overture id.
+
+    Raises:
+        LookupError: the warehouse holds no district with that id.
+    """
+    row = con.execute(
+        "SELECT name, ST_AsText(geom), area_m2 FROM district WHERE id = ?", [district_id]
+    ).fetchone()
     if row is None:
-        raise LookupError("warehouse has no district row")
+        raise LookupError(f"warehouse has no district with id {district_id!r}")
     return str(row[0]), str(row[1]), float(row[2])
+
+
+def district_outline(con: duckdb.DuckDBPyConnection, district_id: str) -> dict[str, Any]:
+    """``{km2, bbox, geometry}`` of one district for the map: outline at 5 decimals, bbox."""
+    row = con.execute(
+        """
+        SELECT area_m2 / 1e6,
+               [ST_XMin(geom), ST_YMin(geom), ST_XMax(geom), ST_YMax(geom)],
+               ST_AsGeoJSON(ST_ReducePrecision(geom, 0.00001))
+        FROM district WHERE id = ?
+        """,
+        [district_id],
+    ).fetchone()
+    if row is None:
+        raise LookupError(f"warehouse has no district with id {district_id!r}")
+    return {
+        "km2": float(row[0]),
+        "bbox": [float(v) for v in row[1]],
+        "geometry": json.loads(row[2]),
+    }

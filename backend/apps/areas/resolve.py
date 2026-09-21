@@ -1,13 +1,18 @@
 """Turn a request area (district slug | bbox | GeoJSON polygon) into one validated polygon.
 
-No geometry maths here: parsing, validity, area and the district-intersection check are all
+No geometry maths here: parsing, validity, area and the district-overlap measure are all
 DuckDB calls through :mod:`warehouse.area`. This module decides what is acceptable and
 phrases the refusal.
+
+A polygon outside the loaded district is *not* refused (the brief says "draw anywhere"): it
+resolves with ``district_overlap_share = 0`` and every KPI answers ``sample_size = 0``. What
+is refused, as a 422 at the API: invalid geometry, too many vertices, too large an area.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -20,9 +25,9 @@ from warehouse import area as warehouse_area
 # per-request engine, and the product is about districts and parts of districts.
 MAX_AREA_KM2 = 50.0
 
-# District slug -> the name the warehouse row carries. Phase 4 moves this to the District
-# model in Postgres; the warehouse holds exactly one district today.
-KNOWN_DISTRICTS: dict[str, str] = {"eixample": "l'Eixample"}
+# A hand-drawn polygon has tens of vertices; thousands is a pasted coastline, and every
+# ST_Intersection in every KPI would pay for it.
+MAX_VERTICES = 2_000
 
 
 class AreaSource(StrEnum):
@@ -43,6 +48,14 @@ class AreaRequest:
 
 
 @dataclass(frozen=True)
+class DistrictRef:
+    """A catalogue entry: the slug the API accepts and the warehouse row it names."""
+
+    slug: str
+    overture_id: str
+
+
+@dataclass(frozen=True)
 class ResolvedArea:
     """A polygon the engine may run on."""
 
@@ -51,6 +64,8 @@ class ResolvedArea:
     """EPSG:4326 WKT, normalised by DuckDB."""
     area_m2: float
     source: AreaSource
+    district_overlap_share: float
+    """0–1: how much of the polygon's area lies inside the loaded district (where data is)."""
 
     @property
     def km2(self) -> float:
@@ -63,16 +78,20 @@ class InvalidAreaError(ValueError):
 
 
 def _candidate_wkt(
-    con: duckdb.DuckDBPyConnection, request: AreaRequest
+    con: duckdb.DuckDBPyConnection, request: AreaRequest, districts: Mapping[str, DistrictRef]
 ) -> tuple[str, str, AreaSource]:
     """(name, WKT, source) before validation."""
     if request.district is not None:
         slug = request.district.strip().lower()
-        if slug not in KNOWN_DISTRICTS:
+        ref = districts.get(slug)
+        if ref is None:
             raise InvalidAreaError(
-                f"unknown district {request.district!r}; known: {sorted(KNOWN_DISTRICTS)}"
+                f"unknown district {request.district!r}; known: {sorted(districts)}"
             )
-        name, wkt, _ = warehouse_area.district_wkt(con)
+        try:
+            name, wkt, _ = warehouse_area.district_wkt(con, ref.overture_id)
+        except LookupError as exc:
+            raise InvalidAreaError(f"district {slug!r} is not in the warehouse") from exc
         return name, wkt, AreaSource.DISTRICT
     if request.bbox is not None:
         xmin, ymin, xmax, ymax = request.bbox
@@ -98,28 +117,43 @@ def _candidate_wkt(
     raise InvalidAreaError("one of district, bbox or polygon is required")
 
 
-def resolve(con: duckdb.DuckDBPyConnection, request: AreaRequest) -> ResolvedArea:
+def resolve(
+    con: duckdb.DuckDBPyConnection,
+    request: AreaRequest,
+    districts: Mapping[str, DistrictRef],
+) -> ResolvedArea:
     """Validate the request area against the warehouse.
 
+    Args:
+        con: a warehouse cursor.
+        request: district slug, bbox or polygon.
+        districts: the catalogue (slug -> warehouse row), loaded by the caller.
+
     Raises:
-        InvalidAreaError: invalid geometry (self-intersecting, unclosed), oversized, or not
-            touching the loaded district.
+        InvalidAreaError: invalid geometry (self-intersecting, unclosed), too many vertices,
+            oversized, or an unknown district slug.
     """
-    name, wkt, source = _candidate_wkt(con, request)
+    name, wkt, source = _candidate_wkt(con, request, districts)
     try:
         check = warehouse_area.inspect_area(con, wkt)
     except duckdb.Error as exc:
         raise InvalidAreaError(f"geometry could not be parsed: {exc}") from exc
     if not check.is_valid:
         raise InvalidAreaError("polygon is not valid (self-intersecting or degenerate)")
+    if check.n_points > MAX_VERTICES:
+        raise InvalidAreaError(
+            f"polygon has {check.n_points:,} vertices; the maximum is {MAX_VERTICES:,}"
+        )
     if check.area_m2 <= 0:
         raise InvalidAreaError("polygon has no area")
     if check.area_m2 > MAX_AREA_KM2 * 1e6:
         raise InvalidAreaError(
             f"polygon is {check.area_m2 / 1e6:.1f} km2; the maximum is {MAX_AREA_KM2:.0f} km2"
         )
-    if not check.intersects_district:
-        raise InvalidAreaError(
-            f"polygon does not touch the loaded district ({check.district_name})"
-        )
-    return ResolvedArea(name=name, wkt=check.wkt, area_m2=check.area_m2, source=source)
+    return ResolvedArea(
+        name=name,
+        wkt=check.wkt,
+        area_m2=check.area_m2,
+        source=source,
+        district_overlap_share=check.district_overlap_share,
+    )

@@ -166,8 +166,19 @@ def _empty(f: Facts) -> str | None:
     )
 
 
+def _overlap(f: Facts) -> str | None:
+    share = f.area.district_overlap_share
+    if share >= 0.95 or share == 0:  # entirely outside is already covered by _empty
+        return None
+    return (
+        f"Only {share:.0%} of this {f.area.km2:.2f} km² area lies inside the loaded district; "
+        f"the numbers describe that part alone."
+    )
+
+
 RULES: tuple[Rule, ...] = (
     _empty,
+    _overlap,
     _low_speed,
     _limit_coverage,
     _green,
