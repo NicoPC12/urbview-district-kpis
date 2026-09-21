@@ -9,11 +9,14 @@
 import type { MapLayerMouseEvent, MapMouseEvent } from 'maplibre-gl';
 import { useEffect, useMemo } from 'react';
 
+import { ApiError } from '@/api/client';
 import { useDistricts, useKpis } from '@/api/useKpis';
 import { districtArea, useAppStore } from '@/state/store';
 
+import { DrawControls } from './DrawControls';
 import { inScope } from './layers';
 import { useDistrictOutline } from './useDistrictOutline';
+import { useDraw } from './useDraw';
 import { raiseAreaLayers, useKpiLayers } from './useKpiLayers';
 import { useMap } from './useMap';
 
@@ -52,6 +55,8 @@ export function MapView() {
     if (map !== null) raiseAreaLayers(map);
   }, [map, areaQuery.data, contextQuery.data, activeKpiKey, drawn]);
 
+  const { drawProblem } = useDraw(map);
+
   // Map → dashboard: click a feature of the area scope. Off while drawing (Pitfall: two
   // handlers on one click).
   useEffect(() => {
@@ -83,9 +88,16 @@ export function MapView() {
     };
   }, [map, mode, selectFeature, activeKpiKey]);
 
+  const problem =
+    drawProblem ??
+    (areaQuery.error instanceof ApiError && areaQuery.error.status === 422
+      ? areaQuery.error.problem.detail
+      : null);
+
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" data-testid="map-canvas" />
+      <DrawControls problem={problem} />
     </div>
   );
 }
