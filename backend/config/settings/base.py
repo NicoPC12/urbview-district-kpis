@@ -22,8 +22,12 @@ environ.Env.read_env(str(BASE_DIR.parent / ".env"))
 # Core
 # ---------------------------------------------------------------------------
 INSTALLED_APPS = [
-    "django.contrib.contenttypes",
+    "django.contrib.admin",
     "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
     "rest_framework",
     "drf_spectacular",
     "apps.areas",
@@ -31,8 +35,14 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # GZip first so it wraps everything: the district response is ~MBs of GeoJSON.
+    "django.middleware.gzip.GZipMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -44,7 +54,13 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [],
         "APP_DIRS": True,
-        "OPTIONS": {"context_processors": []},
+        "OPTIONS": {
+            "context_processors": [  # the admin needs these three
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ]
+        },
     }
 ]
 
@@ -82,6 +98,19 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 # ---------------------------------------------------------------------------
+# Response cache — keyed by sha256(area WKT + warehouse build hash + newest KpiDefinition
+# edit), so it never needs clearing. Process-local: fine for one dev container, Redis is the
+# production answer (README "Caching").
+# ---------------------------------------------------------------------------
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "TIMEOUT": None,  # entries are invalidated by key, not by age
+        "OPTIONS": {"MAX_ENTRIES": 200},
+    }
+}
+
+# ---------------------------------------------------------------------------
 # REST framework + OpenAPI
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
@@ -91,6 +120,8 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
+    # Every error body is RFC 7807 problem details (apps.kpis.problems).
+    "EXCEPTION_HANDLER": "apps.kpis.problems.exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {
@@ -99,6 +130,13 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
+    # Name enums after their Python enum so openapi-typescript emits `SourceKind`, not
+    # `KpisSourceKindEnum`-style noise.
+    "ENUM_NAME_OVERRIDES": {
+        "SourceKind": "apps.kpis.registry.SourceKind",
+        "Denominator": "apps.kpis.registry.Denominator",
+        "AreaSource": "apps.areas.resolve.AreaSource",
+    },
 }
 
 # ---------------------------------------------------------------------------

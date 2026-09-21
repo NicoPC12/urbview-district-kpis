@@ -10,7 +10,8 @@ from __future__ import annotations
 import pytest
 from django.conf import settings
 
-from apps.areas.resolve import AreaRequest
+from apps.areas.resolve import AreaRequest, resolve
+from apps.kpis import definitions, service
 from apps.kpis.engine import compute
 
 EXPECTED: dict[str, tuple[float, int]] = {
@@ -27,8 +28,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.mark.django_db
 def test_district_kpis_pinned_to_two_decimals() -> None:
-    response = compute(settings.WAREHOUSE_PATH, AreaRequest(district="eixample"), with_layers=False)
+    with service.warehouse().cursor() as con:
+        area = resolve(con, AreaRequest(district="eixample"), service.district_refs())
+        response = compute(con, area, definitions.load().kpis, with_layers=False)
+    assert area.district_overlap_share == pytest.approx(1.0, abs=1e-9)
     assert response.area.km2 == pytest.approx(7.508, abs=5e-4)
     assert response.meta.overture_release == "2026-08-19.0"
     actual = {k.key: (round(k.row.value or 0.0, 2), k.row.sample_size) for k in response.kpis}

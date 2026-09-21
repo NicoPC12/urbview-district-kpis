@@ -7,12 +7,15 @@ length function, these fail. Nothing here touches the network or the real extrac
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from apps.areas.resolve import AreaRequest, InvalidAreaError, resolve
 from apps.kpis import registry
-from apps.kpis.engine import compute_with_connection
+from apps.kpis.engine import compute
 from apps.kpis.insights import generate
+from apps.kpis.registry import Kpi
 from tests.fixtures.synthetic import SyntheticWarehouse
 from warehouse.kpi import run_kpi
 
@@ -28,7 +31,7 @@ def kpi(
     wh: SyntheticWarehouse, key: str
 ) -> tuple[float | None, int, dict[str, float] | None, dict[str, float | None]]:
     """(value, sample_size, breakdown-by-key, context-by-key) for one KPI on the registered area."""
-    row = run_kpi(wh.con, registry.BY_KEY[key].sql)
+    row = run_kpi(wh.con, registry.SPEC_BY_KEY[key].sql)
     breakdown = None if row.breakdown is None else {b.key: b.value for b in row.breakdown}
     return row.value, row.sample_size, breakdown, {c.key: c.value for c in row.context}
 
@@ -161,12 +164,14 @@ def test_tree_density_per_clipped_carriageway_km(wh: SyntheticWarehouse) -> None
 # --- contract, empty, invalid ----------------------------------------------------------
 
 
-def test_empty_area_returns_null_values_and_zero_sample_size(wh: SyntheticWarehouse) -> None:
+def test_empty_area_returns_null_values_and_zero_sample_size(
+    wh: SyntheticWarehouse, kpis: tuple[Kpi, ...]
+) -> None:
     wh.segment(1_500, 1_500, 1_600, 1_500, speed=30)  # far from the area
     wh.building(1_500, 1_600)
     area = wh.area(0, 0, 200, 200)
 
-    response = compute_with_connection(wh.con, area, with_layers=True)
+    response = compute(wh.con, area, kpis, with_layers=True)
     for result in response.kpis:
         assert result.row.value is None, result.key
         assert result.row.sample_size == 0, result.key
@@ -186,9 +191,15 @@ def test_empty_area_returns_null_values_and_zero_sample_size(wh: SyntheticWareho
             [[0, 0], [8_000, 0], [8_000, 8_000], [0, 8_000], [0, 0]],
             "maximum is 50",
         ),
-        (  # entirely outside the 2 km district
-            [[3_000, 3_000], [3_100, 3_000], [3_100, 3_100], [3_000, 3_100], [3_000, 3_000]],
-            "does not touch",
+        (  # a 2,500-vertex circle: more than MAX_VERTICES
+            [
+                [
+                    500 + 100 * math.cos(2 * math.pi * i / 2_500),
+                    500 + 100 * math.sin(2 * math.pi * i / 2_500),
+                ]
+                for i in range(2_501)
+            ],
+            "maximum is 2,000",
         ),
     ],
 )
@@ -200,14 +211,33 @@ def test_invalid_areas_are_refused(
     coords = ", ".join(f"{X0 + x} {Y0 + y}" for x, y in polygon)
     geojson = wh.geojson(f"POLYGON(({coords}))")
     with pytest.raises(InvalidAreaError, match=reason):
-        resolve(wh.con, AreaRequest(polygon=geojson))
+        resolve(wh.con, AreaRequest(polygon=geojson), {})
 
 
-def test_every_kpi_declares_what_it_does_not_claim_and_a_source() -> None:
-    for definition in registry.KPIS:
+def test_polygon_outside_the_district_is_empty_not_an_error(
+    wh: SyntheticWarehouse, kpis: tuple[Kpi, ...]
+) -> None:
+    """The brief says "draw anywhere": no data is a 200 with sample_size 0, not a 422."""
+    wh.segment(100, 100, 200, 100, speed=30)
+    area = wh.area(3_000, 3_000, 3_100, 3_100)  # 1 km beyond the 2 km district
+
+    assert area.district_overlap_share == 0.0
+    response = compute(wh.con, area, kpis, with_layers=False)
+    assert all(r.row.sample_size == 0 and r.row.value is None for r in response.kpis)
+
+
+def test_polygon_crossing_the_boundary_reports_its_overlap(wh: SyntheticWarehouse) -> None:
+    area = wh.area(1_500, 0, 2_500, 1_000)  # 1 km x 1 km, half inside the 2 km district
+    assert area.district_overlap_share == pytest.approx(0.5, abs=1e-6)
+    assert wh.area(0, 0, 500, 500).district_overlap_share == pytest.approx(1.0, abs=1e-9)
+
+
+def test_every_kpi_declares_what_it_does_not_claim_and_a_source(kpis: tuple[Kpi, ...]) -> None:
+    assert {k.key for k in kpis} == {s.key for s in registry.SPECS}
+    for definition in kpis:
         assert definition.not_claim.strip(), definition.key
-        assert definition.sql.is_file(), definition.key
-        assert all(layer.sql.is_file() for layer in definition.layers), definition.key
+        assert definition.spec.sql.is_file(), definition.key
+        assert all(layer.sql.is_file() for layer in definition.spec.layers), definition.key
         assert definition.bands and definition.bands[-1].max is None, definition.key
         if definition.source.kind is registry.SourceKind.CITATION:
             assert definition.source.url, definition.key
@@ -215,8 +245,8 @@ def test_every_kpi_declares_what_it_does_not_claim_and_a_source() -> None:
             assert definition.source.note, definition.key
 
 
-def test_band_assignment_uses_upper_bounds() -> None:
-    low_speed = registry.LOW_SPEED_STREET_SHARE
+def test_band_assignment_uses_upper_bounds(kpis: tuple[Kpi, ...]) -> None:
+    low_speed = next(k for k in kpis if k.key == "low_speed_street_share")
     assert low_speed.band_for(39.9) == "Mostly 50"
     assert low_speed.band_for(40) == "Mostly 50"
     assert low_speed.band_for(69.9) == "Mixed"
@@ -224,7 +254,9 @@ def test_band_assignment_uses_upper_bounds() -> None:
     assert low_speed.band_for(None) is None
 
 
-def test_two_areas_produce_different_insights(wh: SyntheticWarehouse) -> None:
+def test_two_areas_produce_different_insights(
+    wh: SyntheticWarehouse, kpis: tuple[Kpi, ...]
+) -> None:
     # Area A: calmed street with a footway, crossings, trees, park next door.
     wh.segment(0, 100, 500, 100, speed=30)
     wh.segment(0, 110, 500, 110, cls="footway")
@@ -237,8 +269,8 @@ def test_two_areas_produce_different_insights(wh: SyntheticWarehouse) -> None:
     wh.segment(1_000, 100, 1_500, 100, speed=50)
     wh.building(1_100, 150)
 
-    a = compute_with_connection(wh.con, wh.area(0, 0, 600, 400), with_layers=False)
-    b = compute_with_connection(wh.con, wh.area(1_000, 0, 1_600, 400), with_layers=False)
+    a = compute(wh.con, wh.area(0, 0, 600, 400), kpis, with_layers=False)
+    b = compute(wh.con, wh.area(1_000, 0, 1_600, 400), kpis, with_layers=False)
 
     assert a.insights and b.insights
     assert set(a.insights).isdisjoint(b.insights)
