@@ -5,7 +5,7 @@
 SELECT to_json({
     'type': 'Feature',
     'id': t.id,
-    'geometry': ST_AsGeoJSON(ST_ReducePrecision(t.geom, 0.000001))::JSON,
+    'geometry': ST_AsGeoJSON(ST_ReducePrecision(t.geom, 0.00001))::JSON,
     'properties': {'category': 'tree'}
 }) AS feature
 FROM trees t

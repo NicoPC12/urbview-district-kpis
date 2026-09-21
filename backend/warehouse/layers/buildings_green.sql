@@ -14,20 +14,18 @@ targets AS (
 ),
 nearest AS (
     SELECT p.id, p.geom,
-           (SELECT t.id FROM targets t ORDER BY ST_Distance(p.geom_m, t.geom_m) LIMIT 1) AS green_id,
-           (SELECT min(ST_Distance(p.geom_m, t.geom_m)) FROM targets t)              AS distance_m
+           (SELECT min(ST_Distance(p.geom_m, t.geom_m)) FROM targets t) AS distance_m
     FROM population p
 )
 SELECT to_json({
     'type': 'Feature',
     'id': id,
-    'geometry': ST_AsGeoJSON(ST_ReducePrecision(geom, 0.000001))::JSON,
+    'geometry': ST_AsGeoJSON(ST_ReducePrecision(geom, 0.00001))::JSON,
     'properties': {
-        'distance_m': round(distance_m, 1),
-        'nearest_green_id': green_id,
         'category': CASE WHEN distance_m <= 300 THEN 'within_300'
                          WHEN distance_m <= 600 THEN 'within_600'
-                         ELSE 'beyond_600' END
+                         ELSE 'beyond_600' END,
+        'distance_m': round(distance_m, 1)
     }
 }) AS feature
 FROM nearest;

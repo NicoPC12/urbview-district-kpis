@@ -18,13 +18,12 @@ used AS (
 SELECT to_json({
     'type': 'Feature',
     'id': g.id,
-    'geometry': ST_AsGeoJSON(ST_ReducePrecision(g.geom, 0.000001))::JSON,
-    'properties': {
+    'geometry': ST_AsGeoJSON(ST_ReducePrecision(g.geom, 0.00001))::JSON,
+    'properties': json_merge_patch('{}', to_json({
+        'category': 'green_space',
         'name': g.name,
-        'class': g.class,
-        'area_ha': round(g.area_m2 / 10000, 2),
-        'category': 'green_space'
-    }
+        'area_ha': round(g.area_m2 / 10000, 2)
+    }))
 }) AS feature
 FROM green_spaces g
 WHERE g.id IN (SELECT id FROM used);

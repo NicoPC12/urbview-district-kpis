@@ -5,7 +5,7 @@
 SELECT to_json({
     'type': 'Feature',
     'id': c.id,
-    'geometry': ST_AsGeoJSON(ST_ReducePrecision(c.geom, 0.000001))::JSON,
+    'geometry': ST_AsGeoJSON(ST_ReducePrecision(c.geom, 0.00001))::JSON,
     'properties': {'category': 'crossing'}
 }) AS feature
 FROM crossings c
