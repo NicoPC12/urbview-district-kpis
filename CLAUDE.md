@@ -166,8 +166,9 @@ PostgreSQL (districts, kpi_defs) ───┤
 
 **Request lifecycle**
 1. Client POSTs an area (district slug, bbox, or GeoJSON polygon).
-2. `areas` resolves it into a single WKT polygon and validates it (area cap, geometry
-   validity, intersects the loaded district).
+2. `areas` resolves it into a single WKT polygon and validates it (area cap, vertex cap,
+   geometry validity). Overlap with the loaded district is *reported*
+   (`area.district_overlap_share`), not required: drawing outside is an empty 200.
 3. `kpis` takes a cursor on the process-wide read-only DuckDB connection (cursors isolate
    temp objects), registers the area polygon **once** as a temp table, then runs each KPI's
    SQL against it.
