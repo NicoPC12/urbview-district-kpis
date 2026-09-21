@@ -26,8 +26,17 @@ type ApiGeometry = components['schemas']['Feature']['geometry'];
 type ApiFeature = components['schemas']['Feature'];
 type ApiFeatureCollection = components['schemas']['FeatureCollection'];
 
-/** Feature properties exactly as the API declares them (typed, not `unknown`). */
-export type FeatureProperties = components['schemas']['FeatureProperties'];
+/**
+ * Feature properties as the API declares them, plus the GERS id copied in as `id`.
+ *
+ * MapLibre only honours numeric feature ids for `feature-state`; a UUID string id is
+ * dropped silently. Every source is therefore created with `promoteId: 'id'`, which reads
+ * the id back from this property. See `PROMOTE_ID`.
+ */
+export type FeatureProperties = components['schemas']['FeatureProperties'] & { id: string };
+
+/** The `promoteId` every GeoJSON source must be created with (Pitfall 1). */
+export const PROMOTE_ID = 'id';
 
 /** A GeoJSON position `[lon, lat]` (a third element is tolerated and ignored). */
 function isPosition(value: unknown): value is [number, number] {
@@ -82,13 +91,13 @@ export function toGeometry(geometry: ApiGeometry): Geometry {
   throw new Error(`GeoJSON ${type} with malformed coordinates`);
 }
 
-/** Narrow one API feature; `id` stays the Overture GERS id string. */
+/** Narrow one API feature; the GERS id is kept as `id` and copied into `properties.id`. */
 export function toFeature(feature: ApiFeature): Feature<Geometry, FeatureProperties> {
   return {
     type: 'Feature',
     id: feature.id,
     geometry: toGeometry(feature.geometry),
-    properties: feature.properties,
+    properties: { ...feature.properties, id: feature.id },
   };
 }
 

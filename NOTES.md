@@ -45,6 +45,10 @@ sentence) or is marked **chosen** with the reasoning. Nothing is cited from memo
   (CLAUDE.md rule 4). Bands are coloured with a single-hue sequential scale and
   `lower_is_better` only *orders* them. Map categories (speed bands, segment classes) are
   categorical and keep distinct hues, but none of them is red either.
+- **The basemap is not a data source.** The map draws OpenFreeMap's `positron` vector tiles
+  underneath as cartographic context (streets and labels to orient by). No KPI reads it,
+  nothing is joined to it, and every number, feature and colour on screen comes from the
+  Overture warehouse. It is keyless and overridable (`VITE_BASEMAP_STYLE_URL`).
 - **Areas partly or fully outside the district.** The warehouse holds features for the
   district only, so a polygon crossing the boundary is measured on its inside part. The
   response says so: `area.district_overlap_share` (area of intersection with the district

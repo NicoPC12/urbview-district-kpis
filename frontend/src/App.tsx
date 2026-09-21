@@ -1,25 +1,26 @@
-import { useHealth } from '@/api/useHealth';
-import { HealthLine } from '@/components/ui/HealthLine';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
+
+import { Dashboard } from '@/features/dashboard/Dashboard';
+import { MapView } from '@/features/map/MapView';
 
 const APP_NAME = 'UrbView';
 
-/** Phase 1 shell: the app name and the backend health probe. Map and dashboard land in Phase 5. */
+/** Map left (~60 %), dashboard right, one store between them. Desktop only (README). */
 export function App() {
-  const health = useHealth();
+  const [client] = useState(() => new QueryClient());
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8 font-sans text-slate-900">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">{APP_NAME}</h1>
-        <p className="text-slate-600">Urban safety KPIs from Overture Maps.</p>
-      </header>
-
-      <section aria-labelledby="health-heading" className="rounded-lg border border-slate-200 p-4">
-        <h2 id="health-heading" className="text-sm font-medium uppercase text-slate-500">
-          Backend
-        </h2>
-        <HealthLine state={health} />
-      </section>
-    </main>
+    <QueryClientProvider client={client}>
+      <div className="grid h-screen grid-cols-[3fr_2fr] font-sans text-slate-900">
+        <main className="relative h-full min-h-0">
+          <MapView />
+        </main>
+        <aside className="h-full min-h-0 overflow-y-auto border-l border-slate-200 p-4">
+          <h1 className="text-xl font-semibold tracking-tight">{APP_NAME}</h1>
+          <Dashboard />
+        </aside>
+      </div>
+    </QueryClientProvider>
   );
 }

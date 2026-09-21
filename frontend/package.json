@@ -19,8 +19,14 @@
     "types": "openapi-typescript ${OPENAPI_URL:-http://localhost:8000/api/schema/} -o src/api/schema.gen.ts --alphabetize --root-types --root-types-no-schema-prefix"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.103.2",
+    "maplibre-gl": "5.24.0",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "recharts": "3.10.1",
+    "terra-draw": "1.35.0",
+    "terra-draw-maplibre-gl-adapter": "1.4.1",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
