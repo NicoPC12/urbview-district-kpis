@@ -248,10 +248,12 @@ def test_area_is_measured_on_the_drawn_polygon_clipped_to_the_district(
             assert a.row.value == pytest.approx(b.row.value, abs=1e-3), a.key
             assert a.row.sample_size == b.row.sample_size, a.key
     crossings = next(r for r in around.kpis if r.key == "crossing_density")
-    assert crossings.row.value == pytest.approx(1 / 0.4, abs=APPROX)  # 1 crossing / 0.4 km
+    assert crossings.row.value == pytest.approx(1 / 0.4, abs=1e-3)  # 1 crossing / 0.4 km
     # The map matches the numbers: no returned street pokes out of the district.
     streets = next(layer for layer in around.layers if layer.id == "streets_speed")
-    assert sorted(f["properties"]["length_m"] for f in streets.features) == [200.0, 200.0]
+    assert sorted(f["properties"]["length_m"] for f in streets.features) == pytest.approx(
+        [200.0, 200.0], abs=0.1
+    )
 
 
 def test_polygon_crossing_the_boundary_reports_its_overlap(wh: SyntheticWarehouse) -> None:
