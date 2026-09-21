@@ -54,17 +54,44 @@ Useful endpoints:
 | URL | What |
 |---|---|
 | `http://localhost:5173` | The app |
+| `POST http://localhost:8000/api/v1/kpis` | Every KPI for `{"district": "eixample"}`, `{"bbox": [...]}` or `{"polygon": <GeoJSON>}` — the contract is in [`CLAUDE.md` §6](CLAUDE.md) and the schema below |
+| `http://localhost:8000/api/v1/districts` | District outlines and bounds (what the map draws on load) |
 | `http://localhost:8000/api/v1/health` | `{"status": "ok", "warehouse": <bool>}` — `warehouse` is whether `data/warehouse.duckdb` exists |
 | `http://localhost:8000/api/schema/` | OpenAPI schema (source of the generated frontend types) |
 | `http://localhost:8000/api/docs/` | Swagger UI |
+| `http://localhost:8000/admin/` | Django admin: KPI labels, bands and citations are rows, not constants. Login `admin` / `admin` (local default, see Configuration) |
+
+```bash
+curl -s --compressed localhost:8000/api/v1/kpis -H 'Content-Type: application/json'   -d '{"polygon":{"type":"Polygon","coordinates":[[[2.160,41.390],[2.170,41.390],[2.170,41.397],[2.160,41.397],[2.160,41.390]]]}}'
+```
+
+Before `make load-data` has run, `/api/v1/kpis` answers **503** with an RFC 7807 body whose
+`detail` says to run it; once the file appears the same server process serves 200 — no
+restart, and the same holds for a later `make warehouse` rebuild (the handle stats the file
+and reopens under a lock). Errors are always `application/problem+json`: 422 for an invalid,
+oversized (> 50 km²) or over-detailed (> 2,000 vertices) polygon. A polygon drawn *outside*
+the district is not an error: it returns 200 with `sample_size: 0` everywhere and
+`area.district_overlap_share` says how much of the drawing has data.
 
 Other commands (`make help` lists them all):
 
 ```bash
 make test     # pytest + vitest, inside the running containers
 make lint     # ruff + mypy + eslint + prettier + tsc
+make types    # regenerate frontend/src/api/schema.gen.ts from the running backend's OpenAPI schema
 make down     # stop the stack; the Postgres volume is kept
 ```
+
+### Caching
+
+Responses are cached in Django's in-process `locmem` under
+`sha256(normalised area WKT + warehouse build hash + newest KpiDefinition.updated_at)`.
+Rebuilding the warehouse or editing a threshold in the admin changes the key, so nothing is
+ever cleared and nothing is warmed. Honest note: a hand-drawn polygon essentially never
+repeats, so the cache serves the district (the one every "clear drawing" returns to) and
+exact repeats of a bbox; the drawn path always computes (≈ 0.3–0.5 s for a few blocks).
+The cache is per process, so two backend replicas would each compute the district once;
+Redis is the production answer and a one-line `CACHES` change.
 
 ## Configuration
 
@@ -77,6 +104,12 @@ This is a deliberate deviation from the working agreement's "no secret in
 a local container nobody can reach is not one — while a required `cp .env.example .env` would
 turn the brief's two-command setup into three. `config.settings.prod` takes no defaults and
 refuses to start without `DJANGO_SECRET_KEY`, `POSTGRES_PASSWORD` and `DJANGO_ALLOWED_HOSTS`.
+
+The same convention covers the admin login: the container runs `manage.py ensure_admin` at
+start, creating `admin` with `DJANGO_ADMIN_PASSWORD` (dev default `admin`; `prod.py` requires
+both `DJANGO_ADMIN_USERNAME` and `DJANGO_ADMIN_PASSWORD`). Between `migrate` and `runserver`
+the container also runs `manage.py check --database default`, which refuses to serve if the
+KPI keys in code and the `KpiDefinition` rows in Postgres disagree (`kpis.E001`).
 
 ## Project structure
 
@@ -106,7 +139,7 @@ Architecture, KPI contract and conventions: see [`CLAUDE.md`](CLAUDE.md). Order 
 
 ## What I built
 
-Phase 1 only, so far:
+Phases 0–4 so far (frontend next):
 
 - Django 5.2 + DRF + drf-spectacular backend with split settings, PostgreSQL via the ORM,
   a health endpoint that is part of the OpenAPI schema, and a container image with the
@@ -121,6 +154,17 @@ Phase 1 only, so far:
   decided KPI set with verified thresholds ([`NOTES.md`](NOTES.md)), and the extraction
   pipeline: pinned release, district-slice extract, DuckDB warehouse with R-tree indexes,
   checksummed prepared-extract download with S3 fallback.
+
+- The KPI engine: five KPIs as one SQL file each under
+  [`backend/warehouse/queries/`](backend/warehouse/queries/), all clipping and measurement in
+  DuckDB against EPSG:25831 geometry with R-tree scans, one map layer per KPI, rule-based
+  insights, and 38 tests — hand-checkable synthetic pins, a two-decimal district regression,
+  and a two-thread isolation test for the shared connection.
+- The API: `POST /api/v1/kpis`, `GET /api/v1/districts`, RFC 7807 errors, GZip, a
+  self-invalidating cache, and KPI metadata (label, definition, "does not claim", bands,
+  source) in Postgres with a seed migration and a Django admin — computation stays in code,
+  a system check refuses to start if the two disagree. Frontend types are generated from the
+  OpenAPI schema by `make types`.
 
 ### Findings worth knowing before Phase 3
 

@@ -168,11 +168,13 @@ PostgreSQL (districts, kpi_defs) ───┤
 1. Client POSTs an area (district slug, bbox, or GeoJSON polygon).
 2. `areas` resolves it into a single WKT polygon and validates it (area cap, geometry
    validity, intersects the loaded district).
-3. `kpis` opens a read-only DuckDB connection, registers the area polygon **once** as a
-   temp table, then runs each KPI's SQL against it.
+3. `kpis` takes a cursor on the process-wide read-only DuckDB connection (cursors isolate
+   temp objects), registers the area polygon **once** as a temp table, then runs each KPI's
+   SQL against it.
 4. Results are assembled into the response contract, with definitions, bands and citations
    pulled from Postgres.
-5. Response cached by `sha256(normalised area WKT + kpi registry version)`.
+5. Response cached by `sha256(normalised area WKT + warehouse build hash + newest
+   KpiDefinition.updated_at)` — a rebuild or an admin edit invalidates without clearing.
 
 ---
 

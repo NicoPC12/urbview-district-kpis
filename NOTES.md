@@ -40,6 +40,16 @@ sentence) or is marked **chosen** with the reasoning. Nothing is cited from memo
 - **Denominators** are only ever length, area, building count or segment count (CLAUDE.md
   rule 2). No socioeconomic quantity appears anywhere.
 - **Empty is a state:** `sample_size = 0` returns `value: null`, not an error and not zero.
+- **Palette, deliberately not a traffic light.** Band pills are never red/amber/green: a red
+  card reads as "this place is dangerous", exactly the claim these numbers cannot support
+  (CLAUDE.md rule 4). Bands are coloured with a single-hue sequential scale and
+  `lower_is_better` only *orders* them. Map categories (speed bands, segment classes) are
+  categorical and keep distinct hues, but none of them is red either.
+- **Areas partly or fully outside the district.** The warehouse holds features for the
+  district only, so a polygon crossing the boundary is measured on its inside part. The
+  response says so: `area.district_overlap_share` (area of intersection with the district
+  over area of the polygon, both in EPSG:25831) and an insight sentence. A polygon entirely
+  outside is a 200 with `sample_size = 0`, not an error.
 - **`access_restrictions` is not read by any KPI.** Phase 0 found that its dominant entry is a
   one-way rule (`denied` + `heading = 'backward'`, no mode) which naive logic would read as
   "closed" and thereby remove 80 % of residential streets. The chosen KPIs are class-based
