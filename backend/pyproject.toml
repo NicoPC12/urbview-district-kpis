@@ -42,6 +42,7 @@ select = ["E", "F", "W", "I", "UP", "B", "D", "ANN", "N"]
 ignore = [
     "D203",  # one-blank-line-before-class (conflicts with D211)
     "D213",  # multi-line-summary-second-line (conflicts with D212)
+    "D106",  # docstring on nested classes: Django `class Meta` is convention, not API
 ]
 
 [tool.ruff.lint.pydocstyle]

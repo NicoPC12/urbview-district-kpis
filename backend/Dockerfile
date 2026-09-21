@@ -21,4 +21,6 @@ RUN python -c "import duckdb; c = duckdb.connect(); c.execute('INSTALL spatial')
 COPY . .
 
 EXPOSE 8000
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"]
+# migrate, then refuse to serve if the KPI registry and the database disagree (kpis.E001),
+# then make sure the admin login exists, then serve.
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py check --database default && python manage.py ensure_admin && python manage.py runserver 0.0.0.0:8000"]

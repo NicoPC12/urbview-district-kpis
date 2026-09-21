@@ -20,3 +20,7 @@ SECRET_KEY = (
 ALLOWED_HOSTS = ["*"]
 
 DATABASES["default"]["PASSWORD"] = env("POSTGRES_PASSWORD", default="urbview_dev")  # noqa: F405
+
+# Admin login for the local stack (`ensure_admin` creates the user at container start).
+ADMIN_USERNAME = env("DJANGO_ADMIN_USERNAME", default="admin")
+ADMIN_PASSWORD = env("DJANGO_ADMIN_PASSWORD", default="") or "admin"
