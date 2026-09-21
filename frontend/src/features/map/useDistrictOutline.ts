@@ -7,9 +7,9 @@ import { useEffect, useRef } from 'react';
 
 import { toGeometry } from '@/api/geojson';
 import type { District } from '@/api/schema.gen';
+import { OUTLINE_COLOR } from '@/lib/theme';
 
 const SOURCE = 'district-outline';
-const OUTLINE_COLOR = '#334155';
 
 /** Add the outline source/layers and fit bounds on the first render of each district. */
 export function useDistrictOutline(map: MapLibreMap | null, district: District | undefined): void {

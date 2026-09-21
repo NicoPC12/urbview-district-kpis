@@ -127,6 +127,12 @@ export const districtResponse: KpiResponse = {
       },
       {
         kpi_key: 'green_space_distance_p50',
+        key: 'within_600',
+        label: '300–600 m',
+        color: '#b45309',
+      },
+      {
+        kpi_key: 'green_space_distance_p50',
         key: 'green_space',
         label: 'green space',
         color: '#22c55e',

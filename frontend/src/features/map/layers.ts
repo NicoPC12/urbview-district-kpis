@@ -9,6 +9,7 @@
 import type { ExpressionSpecification, FilterSpecification, LayerSpecification } from 'maplibre-gl';
 
 import type { LegendItem } from '@/api/schema.gen';
+import { FALLBACK_COLOR, POINT_HALO, SELECTED_COLOR } from '@/lib/theme';
 
 /** `area`: the selected area's features; `context`: the district, dimmed underneath. */
 export type LayerScope = 'area' | 'context';
@@ -18,11 +19,6 @@ export interface HighlightState {
   selectedCategory: string | null;
   selectedFeatureId: string | null;
 }
-
-/** Colour for a category the legend does not name (matches the backend's DEFAULT_COLOR). */
-export const FALLBACK_COLOR = '#94a3b8';
-/** Outline colour of the selected feature. Not a KPI colour: a neutral ink. */
-export const SELECTED_COLOR = '#0f172a';
 
 const DIM_OPACITY = 0.2;
 const CONTEXT_OPACITY = 0.35;
@@ -130,7 +126,7 @@ export function layerSpecs(
         'circle-color': color,
         'circle-opacity': opacity,
         'circle-radius': scope === 'context' ? 2.5 : 4,
-        'circle-stroke-color': '#ffffff',
+        'circle-stroke-color': POINT_HALO,
         'circle-stroke-width': scope === 'context' ? 0 : 1,
       },
     },

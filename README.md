@@ -139,7 +139,7 @@ Architecture, KPI contract and conventions: see [`CLAUDE.md`](CLAUDE.md). Order 
 
 ## What I built
 
-Phases 0–4 so far (frontend next):
+Phases 0–5 so far:
 
 - Django 5.2 + DRF + drf-spectacular backend with split settings, PostgreSQL via the ORM,
   a health endpoint that is part of the OpenAPI schema, and a container image with the
@@ -165,6 +165,18 @@ Phases 0–4 so far (frontend next):
   source) in Postgres with a seed migration and a Django admin — computation stays in code,
   a system check refuses to start if the two disagree. Frontend types are generated from the
   OpenAPI schema by `make types`.
+- The page: MapLibre (keyless OpenFreeMap basemap as context only) beside a dashboard, one
+  Zustand store between them holding *selection* only — the numbers live once, in TanStack
+  Query keyed by the area. Draw a polygon → every card recomputes; clear → back to the
+  district, with the district kept underneath a drawing as dimmed context. Clicking a chart
+  bar or legend item emphasises that category on the map; clicking a feature shows what it
+  contributes to the active KPI, computed from the loaded layer, never by a request. Cards
+  show the value, a single-hue band pill (no traffic light, see NOTES), what `n` counts,
+  the definition, what the KPI does *not* claim, and the context figures. States: first-load
+  skeletons, recomputing over the previous numbers, per-card empty, 503 "run
+  `make load-data`", generic error with retry, 422 shown next to the drawing.
+  **Desktop only:** the layout is a fixed map/dashboard split; a phone layout was not
+  attempted rather than half-done.
 
 ### Findings worth knowing before Phase 3
 
