@@ -1,198 +1,157 @@
 # UrbView — district KPI dashboard
 
-A single page showing a map of a Barcelona district next to a KPI dashboard. Drawing a
-polygon on the map recomputes every KPI for that polygon alone. Data source: Overture Maps,
-and nothing else.
-
-> **Status:** Phases 0–2 complete (reconnaissance, KPI decision, extraction pipeline). The
-> warehouse builds; the KPI engine, API and map are not built yet. The page currently shows
-> the app name and the backend health probe.
-
-## Prerequisites
-
-- Docker Desktop (tested with Docker 29 / Compose v5 on Windows 10).
-- GNU `make` — on Windows: `winget install GnuWin32.Make`, then run from Git Bash.
-- Nothing else. Python and Node run inside the containers.
+A single page: a map of Barcelona's Eixample beside a KPI dashboard, where drawing a polygon
+recomputes every KPI for that polygon alone. Data source: Overture Maps, and nothing else.
 
 ## Setup
 
 ```bash
 docker compose up --build   # 1. app on http://localhost:5173, API on http://localhost:8000
-make load-data              # 2. fetch the prepared Overture extract and build data/warehouse.duckdb
+make load-data              # 2. fetch the prepared Overture extract, build data/warehouse.duckdb
 ```
 
+Prerequisites: Docker Desktop and GNU `make` (Windows: `winget install GnuWin32.Make`, run
+from Git Bash). Python and Node run inside the containers.
+
 Measured on a machine with no cached images: cold `docker compose up --build` **2 min 50 s**
-(+ ~10 s to healthy); `make load-data` **9 s** from the release asset, or **~11 min** if it
-has to fall back to pulling from Overture's S3 bucket (see "Data" below).
+(+ ~15 s until the backend has migrated); `make load-data` **9 s** from the release asset,
+or **~11 min** if it falls back to pulling from Overture's S3 bucket.
 
-### Data
-
-Overture Maps is the only source. `make load-data` downloads a **prepared extract** — the exact
-output of `make extract`, 6.8 MB across six Parquet files — from a GitHub Release asset,
-verifies each file against the SHA-256 in [`backend/pipeline/manifest.json`](backend/pipeline/manifest.json),
-then builds `data/warehouse.duckdb` (10.5 MB, ~2 s).
-
-The asset lives in a separate, public, data-only repository,
-[`NicoPC12/urbview-data`](https://github.com/NicoPC12/urbview-data): the data is not in this
-repository because the brief says to commit the extraction script and not the data, and it is
-not behind auth because this repository is private and the reviewer's load must work over
-plain HTTPS with nothing to configure.
-
-- `make extract` re-runs the real pull from `s3://overturemaps-us-west-2` (release pinned in
-  [`backend/pipeline/release.py`](backend/pipeline/release.py)), then builds. ~10 min: the cost
-  is S3 row-group scanning, not bytes.
-- If the release asset cannot be downloaded (offline, or the data repository is gone),
-  `make load-data` falls back to that pull automatically, printing progress every 30 s.
-- `make warehouse` rebuilds the warehouse from `data/raw/` without downloading.
-- `make publish-extract` (maintainer) uploads `data/raw/*.parquet` and rewrites the manifest.
-
-What the warehouse holds and why only that: [`backend/pipeline/build.py`](backend/pipeline/build.py)
-docstring; the reconnaissance behind the choice: [`docs/recon.md`](docs/recon.md).
-
-Useful endpoints:
+What you should see: before step 2 the page says *Warehouse not loaded — run `make
+load-data`*; after it, without restarting anything, the map shows the district outline with
+its streets coloured by posted speed and the dashboard reads **50.7 %** on the first card.
+Press **Draw area**, click a few points, click the first point to close: every card
+recomputes for the polygon (under a second), the district stays underneath as dimmed context, and
+**Clear drawing** brings the district back. Click a card to switch the map layer, a chart
+bar or legend chip to emphasise that category, a street or point to see its contribution.
 
 | URL | What |
 |---|---|
-| `http://localhost:5173` | The app |
-| `POST http://localhost:8000/api/v1/kpis` | Every KPI for `{"district": "eixample"}`, `{"bbox": [...]}` or `{"polygon": <GeoJSON>}` — the contract is in [`CLAUDE.md` §6](CLAUDE.md) and the schema below |
-| `http://localhost:8000/api/v1/districts` | District outlines and bounds (what the map draws on load) |
-| `http://localhost:8000/api/v1/health` | `{"status": "ok", "warehouse": <bool>}` — `warehouse` is whether `data/warehouse.duckdb` exists |
-| `http://localhost:8000/api/schema/` | OpenAPI schema (source of the generated frontend types) |
-| `http://localhost:8000/api/docs/` | Swagger UI |
-| `http://localhost:8000/admin/` | Django admin: KPI labels, bands and citations are rows, not constants. Login `admin` / `admin` (local default, see Configuration) |
+| `http://localhost:5173` | The app (desktop only) |
+| `POST http://localhost:8000/api/v1/kpis` | Every KPI for `{"district": "eixample"}`, `{"bbox": [...]}` or `{"polygon": <GeoJSON>}` |
+| `http://localhost:8000/api/v1/districts` | District outline and bounds |
+| `http://localhost:8000/api/schema/` · `/api/docs/` | OpenAPI schema (the source of the generated frontend types) · Swagger UI |
+| `http://localhost:8000/admin/` | KPI labels, bands and citations as editable rows — login `admin` / `admin` |
 
 ```bash
-curl -s --compressed localhost:8000/api/v1/kpis -H 'Content-Type: application/json'   -d '{"polygon":{"type":"Polygon","coordinates":[[[2.160,41.390],[2.170,41.390],[2.170,41.397],[2.160,41.397],[2.160,41.390]]]}}'
+curl -s --compressed localhost:8000/api/v1/kpis -H 'Content-Type: application/json' \
+  -d '{"polygon":{"type":"Polygon","coordinates":[[[2.160,41.390],[2.170,41.390],[2.170,41.397],[2.160,41.397],[2.160,41.390]]]}}'
 ```
 
-Before `make load-data` has run, `/api/v1/kpis` answers **503** with an RFC 7807 body whose
-`detail` says to run it; once the file appears the same server process serves 200 — no
-restart, and the same holds for a later `make warehouse` rebuild (the handle stats the file
-and reopens under a lock). Errors are always `application/problem+json`: 422 for an invalid,
-oversized (> 50 km²) or over-detailed (> 2,000 vertices) polygon. A polygon drawn *outside*
-the district is not an error: it returns 200 with `sample_size: 0` everywhere and
-`area.district_overlap_share` says how much of the drawing has data.
-
-Other commands (`make help` lists them all):
-
-```bash
-make test     # pytest + vitest, inside the running containers
-make lint     # ruff + mypy + eslint + prettier + tsc
-make types    # regenerate frontend/src/api/schema.gen.ts from the running backend's OpenAPI schema
-make down     # stop the stack; the Postgres volume is kept
-```
-
-### Caching
-
-Responses are cached in Django's in-process `locmem` under
-`sha256(normalised area WKT + warehouse build hash + newest KpiDefinition.updated_at)`.
-Rebuilding the warehouse or editing a threshold in the admin changes the key, so nothing is
-ever cleared and nothing is warmed. Honest note: a hand-drawn polygon essentially never
-repeats, so the cache serves the district (the one every "clear drawing" returns to) and
-exact repeats of a bbox; the drawn path always computes (≈ 0.3–0.5 s for a few blocks).
-The cache is per process, so two backend replicas would each compute the district once;
-Redis is the production answer and a one-line `CACHES` change.
-
-## Configuration
-
-`docker compose up` works on a clean clone with no `.env`. Every variable is documented in
-[`.env.example`](.env.example); copy it to `.env` only if you need to change something.
-
-This is a deliberate deviation from the working agreement's "no secret in
-`docker-compose.yml`" rule: the file carries a default Postgres password and `dev.py` a
-`django-insecure-` key. That rule targets real credentials, and a throwaway password guarding
-a local container nobody can reach is not one — while a required `cp .env.example .env` would
-turn the brief's two-command setup into three. `config.settings.prod` takes no defaults and
-refuses to start without `DJANGO_SECRET_KEY`, `POSTGRES_PASSWORD` and `DJANGO_ALLOWED_HOSTS`.
-
-The same convention covers the admin login: the container runs `manage.py ensure_admin` at
-start, creating `admin` with `DJANGO_ADMIN_PASSWORD` (dev default `admin`; `prod.py` requires
-both `DJANGO_ADMIN_USERNAME` and `DJANGO_ADMIN_PASSWORD`). Between `migrate` and `runserver`
-the container also runs `manage.py check --database default`, which refuses to serve if the
-KPI keys in code and the `KpiDefinition` rows in Postgres disagree (`kpis.E001`).
-
-## Project structure
-
-```
-backend/
-  config/         Django project: settings/{base,dev,prod}.py, urls, asgi/wsgi
-  apps/areas/     area resolution (district | bbox | polygon)  — Phase 3
-  apps/kpis/      KPI registry, engine, serializers, views     — health view today
-  warehouse/      DuckDB access layer, zero Django imports     — Phase 3
-  pipeline/       release pin, recon, extract, build, load_data, publish
-  tests/          pytest
-frontend/
-  src/api/        typed client + hooks (schema.gen.ts arrives with `make types`)
-  src/state/      zustand store — the single source of truth   — Phase 5
-  src/features/   map/, dashboard/, area/                      — Phase 5
-  src/components/ui/  presentational primitives
-  src/lib/        pure helpers
-  tests/          vitest + testing-library + msw
-data/             GITIGNORED — produced by `make load-data`
-docs/             recon.md — Phase 0 evidence and KPI decision
-walkthrough/      deck source + exported PDF                   — Phase 8
-docker-compose.yml, Makefile, NOTES.md (KPI reference table, first draft)
-```
-
-Architecture, KPI contract and conventions: see [`CLAUDE.md`](CLAUDE.md). Order of work:
-[`PLAN.md`](PLAN.md).
+Other commands (`make help` lists them all): `make test`, `make lint`, `make types`
+(regenerate `frontend/src/api/schema.gen.ts`), `make extract` (real Overture S3 pull,
+~10 min), `make warehouse` (rebuild from `data/raw/`), `make down`.
 
 ## What I built
 
-Phases 0–5 so far:
+- **Pipeline** — [`backend/pipeline/`](backend/pipeline/): pinned Overture release, bbox
+  pushdown extract of six themes (6.8 MB of Parquet), a DuckDB warehouse with EPSG:4326 and
+  EPSG:25831 geometry side by side and an R-tree per table, and a checksummed prepared-extract
+  download with automatic S3 fallback.
+- **Five KPIs** — one SQL file each in [`backend/warehouse/queries/`](backend/warehouse/queries/);
+  clipping, joins, lengths and distances all in DuckDB, Python never iterates a geometry.
+  Definitions, bands and citations in [`NOTES.md`](NOTES.md) and, at runtime, in Postgres.
+  Two thresholds are cited (30 km/h, WHO 300 m / 0.5 ha); the rest are *derived* from the
+  district's own 250 m-cell distribution by a committed, re-runnable script
+  (`make derive-bands`), never picked by hand.
+- **API** — `POST /api/v1/kpis` with RFC 7807 errors, GZip, a self-invalidating cache, KPI
+  metadata in Postgres behind the Django admin, a system check that refuses to start if code
+  and database disagree, and one read-only DuckDB connection per process with a cursor per
+  request.
+- **Page** — MapLibre + terra-draw beside a React dashboard, one Zustand store holding
+  selection only; numbers live once, in TanStack Query keyed by the area. Both interaction
+  directions, all four states, types generated from the OpenAPI schema.
 
-- Django 5.2 + DRF + drf-spectacular backend with split settings, PostgreSQL via the ORM,
-  a health endpoint that is part of the OpenAPI schema, and a container image with the
-  DuckDB `spatial` extension baked in (no network needed at runtime).
-- Vite + React 18 + TypeScript (`strict`, `noUncheckedIndexedAccess`) frontend with
-  Tailwind v4, ESLint (type-checked), Prettier, Vitest + Testing Library + MSW. One page:
-  app name + backend health, with loading / error / values states and three tests.
-- Compose stack (`db`, `backend`, `frontend`) with healthcheck ordering, hot reload through
-  Windows bind mounts, and a Makefile whose not-yet-implemented targets fail loudly.
+## Deviations from the brief
 
-- Phase 0 reconnaissance against the real release ([`docs/recon.md`](docs/recon.md)), a
-  decided KPI set with verified thresholds ([`NOTES.md`](NOTES.md)), and the extraction
-  pipeline: pinned release, district-slice extract, DuckDB warehouse with R-tree indexes,
-  checksummed prepared-extract download with S3 fallback.
-
-- The KPI engine: five KPIs as one SQL file each under
-  [`backend/warehouse/queries/`](backend/warehouse/queries/), all clipping and measurement in
-  DuckDB against EPSG:25831 geometry with R-tree scans, one map layer per KPI, rule-based
-  insights, and 38 tests — hand-checkable synthetic pins, a two-decimal district regression,
-  and a two-thread isolation test for the shared connection.
-- The API: `POST /api/v1/kpis`, `GET /api/v1/districts`, RFC 7807 errors, GZip, a
-  self-invalidating cache, and KPI metadata (label, definition, "does not claim", bands,
-  source) in Postgres with a seed migration and a Django admin — computation stays in code,
-  a system check refuses to start if the two disagree. Frontend types are generated from the
-  OpenAPI schema by `make types`.
-- The page: MapLibre (keyless OpenFreeMap basemap as context only) beside a dashboard, one
-  Zustand store between them holding *selection* only — the numbers live once, in TanStack
-  Query keyed by the area. Draw a polygon → every card recomputes; clear → back to the
-  district, with the district kept underneath a drawing as dimmed context. Clicking a chart
-  bar or legend item emphasises that category on the map; clicking a feature shows what it
-  contributes to the active KPI, computed from the loaded layer, never by a request. Cards
-  show the value, a single-hue band pill (no traffic light, see NOTES), what `n` counts,
-  the definition, what the KPI does *not* claim, and the context figures. States: first-load
-  skeletons, recomputing over the previous numbers, per-card empty, 503 "run
-  `make load-data`", generic error with retry, 422 shown next to the drawing.
-  **Desktop only:** the layout is a fixed map/dashboard split; a phone layout was not
-  attempted rather than half-done.
-
-### Findings worth knowing before Phase 3
-
-**DuckDB `ST_Transform` follows EPSG axis order by default.** EPSG:4326 is officially
-(latitude, longitude), so `ST_Transform(ST_Point(2.17, 41.39), 'EPSG:4326', 'EPSG:25831')`
-silently returns nonsense (`POINT (5131256 306566)`). With `always_xy := true` it returns the
-expected UTM 31N position for Barcelona, `POINT (430608.50 4582384.56)`, and a 0.012° line
-due east at that latitude measures 1003 m (analytically ≈1002 m). Every `ST_Transform` in the
-warehouse build must pass `always_xy := true`.
+- **REST + OpenAPI codegen, not GraphQL.** The rubric wants generated client types;
+  `openapi-typescript` gives that for a fraction of the setup inside a 10-hour budget.
+- **The extract is published in a separate public data-only repository**
+  ([`NicoPC12/urbview-data`](https://github.com/NicoPC12/urbview-data)) as a release asset.
+  The brief says commit the script, not the data, *and* be running in fifteen minutes; the
+  asset satisfies both, the S3 pull stays one command away, and this repository stays private.
+- **Dev defaults in `docker-compose.yml` and `dev.py`** (Postgres password, `django-insecure-`
+  key, `admin`/`admin`). They guard a local container nobody can reach; a required
+  `cp .env.example .env` would make the two-command setup three. `prod.py` takes no defaults.
+- **An OSM-derived basemap under the data.** OpenFreeMap tiles are cartographic context only;
+  no KPI reads them, nothing joins to them, every number comes from Overture (NOTES "Basemap").
+- **Desktop only.** A fixed map/dashboard split; a phone layout was not attempted rather than
+  half-done.
 
 ## What I cut and why
 
-Nothing yet — nothing has been cut because nothing beyond infrastructure has been built.
-This section is filled in as decisions are made.
+- **Lamps, transit, land-use mix, green share, junction density** as KPIs — each for one
+  number found in reconnaissance (NOTES "Rejected KPIs"): lamps measure mapping effort,
+  transit has no spatial variance, land use covers 30 % of the district.
+- **Mobile layout** — see above.
+- **Vector tiles.** The district response is 6 MB raw / 1.1 MB gzipped; fine for one district,
+  the wrong shape at 10×. Static geometry as tiles plus per-request ids is the walkthrough's
+  answer, not this week's build.
+- **Async jobs.** Every request finishes under 3 s cold and 0.5 s cached; a queue would be
+  machinery without a customer until polygons reach tens of km².
+- **Authentication.** The API is public read-only over a local network; the admin has a login.
 
 ## What to look at
 
-Nothing to review yet beyond the setup working. This section will point at the KPI SQL, the
-shared store, and the tests once they exist.
+- [`backend/warehouse/queries/low_speed_street_share.sql`](backend/warehouse/queries/low_speed_street_share.sql)
+  — one KPI end to end: R-tree scan, `ST_Intersection` clipping, the denominator choice, the
+  breakdown and the context in one statement.
+- [`backend/apps/areas/resolve.py`](backend/apps/areas/resolve.py) — the resolver computes
+  *drawn ∩ district* once (`effective_wkt`); every KPI and layer runs on that.
+- [`backend/pipeline/derive_bands.py`](backend/pipeline/derive_bands.py) — how every uncited
+  band boundary was derived (grid, minimum denominator, P33/P67), and the sidewalk-coverage
+  measurement that changed the pedestrian KPI's definition.
+- [`docs/reference-areas/`](docs/reference-areas/) — two 0.317 km² polygons (the Sant Antoni
+  superblock, an Aragó corridor) with their five-KPI comparison in NOTES; paste either into
+  the API or draw it to reproduce.
+- [`backend/warehouse/connection.py`](backend/warehouse/connection.py) — one connection per
+  process, a cursor per request, and a stat-guarded reopen so `make load-data` and rebuilds
+  are picked up by a running server.
+- [`frontend/src/features/map/layers.ts`](frontend/src/features/map/layers.ts) —
+  `emphasisExpression`: the whole of "a chart click filters the map", a pure function applied
+  as a paint property, never a refetch.
+- [`frontend/src/features/dashboard/contribution.ts`](frontend/src/features/dashboard/contribution.ts)
+  — one pure rule per KPI for "what does this feature contribute", from the loaded layer.
+
+## Tests
+
+`make test` runs both suites inside the containers (40 backend, 33 frontend; nothing hits
+the network or needs the real extract).
+
+- The test that pins a KPI computation:
+  [`backend/tests/test_kpis.py::test_low_speed_share_is_length_weighted_over_mapped_carriageway`](backend/tests/test_kpis.py)
+  — three 100 m segments at 30 / 50 / no limit on a synthetic warehouse must read exactly
+  50.0 %; change the class list, the clipping or the length function and it fails. Every KPI
+  has one.
+- The frontend test: [`frontend/tests/App.test.tsx`](frontend/tests/App.test.tsx) — with MSW
+  mocking the API, setting a drawn area in the store updates every card to the new values,
+  clearing returns to the district, and `sample_size: 0` renders the empty state.
+- Also: a real-district regression pinning all five values to two decimals, a two-thread
+  isolation test on the shared connection, the 503 → build → 200 and rebuild → new numbers
+  paths, every 422 case, cache invalidation on an admin edit, and the pure seams (draw
+  finish, highlight expressions, contribution rules, band ramp).
+
+## Findings worth knowing
+
+- **DuckDB `ST_Transform` follows EPSG axis order.** EPSG:4326 is (lat, lon), so a transform
+  without `always_xy := true` puts Barcelona 4 700 km away with plausible-looking numbers.
+- **`access_restrictions` hides one-way rules.** The dominant entry is `denied` +
+  `heading = 'backward'` with no mode; reading it as "closed" removes 80 % of residential streets.
+- **DuckDB caches database instances per path.** Reopening a replaced warehouse file while the
+  old connection is alive silently returns the old instance; the handle drains cursors and
+  closes first.
+- **`list()` ignores a CTE's `ORDER BY`.** Breakdown order came out thread-dependent on ties;
+  the sort now lives inside the aggregate.
+- **A polygon containing the district read different numbers than the district.** Segments
+  that touch the district are stored whole; clipping to the raw drawing counted their outside
+  parts. Every KPI now runs on drawn ∩ district, pinned by a regression test.
+- **The pedestrian KPI was measuring sidewalk mapping.** Overture carries about half of
+  Eixample's sidewalks as separate lines (0.7–1.5 km per carriageway km across cells), so the
+  "share of network that is pedestrian" sat at 50–55 % everywhere — its variance was OSM
+  coverage. Sidewalks and crosswalks are now excluded; the district reads 20.6 %, not 52 %.
+- **Overture already carries the Sant Antoni superblock.** Comte Borrell and Consell de Cent
+  are `living_street` at 10 km/h; the superblock reads 63.6 % calmed against 47.7 % on an
+  equal-sized Aragó corridor. No data lag to report there.
+
+Architecture and conventions: [`CLAUDE.md`](CLAUDE.md). Reconnaissance evidence:
+[`docs/recon.md`](docs/recon.md). Configuration: [`.env.example`](.env.example).

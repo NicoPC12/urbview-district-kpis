@@ -246,7 +246,7 @@ PostgreSQL (districts, kpi_defs) ───┤
 **Contract rules**
 - `sample_size == 0` is a valid, non-error state. The API returns 200 with `value: null` and
   the UI renders an empty state. A polygon over the sea is not a crash.
-- Returned GeoJSON is always EPSG:4326, coordinates rounded to 6 decimals.
+- Returned GeoJSON is always EPSG:4326, coordinates rounded to 5 decimals (~1 m).
 - Feature `id` in returned layers is the Overture GERS id, so the map can address features
   with `feature-state` and the dashboard can name them.
 - Validation errors return RFC 7807 problem details with a 422.
