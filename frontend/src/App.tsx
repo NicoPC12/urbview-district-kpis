@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { useAreaUrl } from '@/features/area/useAreaUrl';
 import { Dashboard } from '@/features/dashboard/Dashboard';
 import { MapView } from '@/features/map/MapView';
 
@@ -9,6 +10,7 @@ const APP_NAME = 'UrbView';
 /** Map left (~60 %), dashboard right, one store between them. Desktop only (README). */
 export function App() {
   const [client] = useState(() => new QueryClient());
+  useAreaUrl(); // ?area=<lon,lat,…> both ways, so a view can be linked and screenshotted
 
   return (
     <QueryClientProvider client={client}>

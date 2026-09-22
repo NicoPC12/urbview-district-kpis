@@ -32,18 +32,20 @@ figures. Labels are *Lower / Middle / Upper third* because that is all they mean
 [`docs/derived_bands.md`](docs/derived_bands.md). The insight sentences read the band, not
 their own thresholds, so an admin edit moves them too.
 
-## Two reference areas (0.317 km² each, GeoJSON in [`docs/reference-areas/`](docs/reference-areas/))
+## Two reference areas
 
-**A** — Carrer del Comte Borrell from Tamarit to Consell de Cent, 200 m each side: the Sant
-Antoni superblock and the Consell de Cent green axis. **B** — Carrer d'Aragó centred on
-Carrer de Sardenya, same length and width, east of where the axis ends.
+Both ~0.32 km², polygons in [`docs/reference-areas/`](docs/reference-areas/) and openable
+directly: **A** `/?area=2.15326,41.38205,2.15668,41.38457,2.16331,41.37945,2.15989,41.37693` — Carrer del Comte Borrell from Tamarit to Consell de Cent, 200 m
+each side (the Sant Antoni superblock and the Consell de Cent green axis). **B** `/?area=2.17846,41.40463,2.18181,41.40206,2.17503,41.39706,2.17168,41.39963` —
+Carrer d'Aragó centred on Carrer de Sardenya, same length and width, east of where the axis
+ends.
 
-| KPI | A · superblock | B · Aragó corridor | District |
+| KPI | A · superblock (0.318 km²) | B · Aragó corridor (0.317 km²) | District |
 |---|---|---|---|
 | Carriageway ≤ 30 km/h | **63.6 %** (Upper third) | 47.7 % (Middle) | 50.7 % |
 | Crossings / km | 20.9 (Middle) | **31.2** (Upper) | 22.6 |
 | Pedestrian-only street network | **26.0 %** (Upper) | 16.7 % (Middle) | 20.6 % |
-| Median distance to public green ≥ 0.5 ha | 595 m (Beyond; 0 % within 300 m) | **150 m** (Within; 87 %) | 362 m |
+| Median distance to public green ≥ 0.5 ha | 595 m (Beyond; 0 % within 300 m) | **151 m** (Within; 87 %) | 362 m |
 | Street trees / km | 52.7 (Middle) | 50.3 (Middle) | 55.4 |
 
 Overture does carry the intervention: Comte Borrell and Consell de Cent are `living_street`

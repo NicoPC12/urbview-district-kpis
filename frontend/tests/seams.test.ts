@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PROMOTE_ID, toFeature, toFeatureCollection, toGeometry } from '@/api/geojson';
 import { finishDrawing } from '@/features/area/selection';
+import { areaFromSearch, searchForArea } from '@/features/area/url';
 import {
   colorExpression,
   emphasisExpression,
@@ -216,5 +217,47 @@ describe('store', () => {
     expect(useAppStore.getState().selectedCategory).toBe('le30');
     useAppStore.getState().toggleCategory('le30');
     expect(useAppStore.getState().selectedCategory).toBeNull();
+  });
+});
+
+describe('area in the URL', () => {
+  const polygon = { type: 'Polygon' as const, coordinates: [RING] };
+
+  it('encodes a drawn polygon to a short parameter and omits it for the district', () => {
+    expect(searchForArea({ kind: 'drawn', geometry: polygon })).toBe(
+      '?area=2.16,41.39,2.17,41.39,2.17,41.397',
+    );
+    expect(searchForArea(districtArea())).toBe('');
+  });
+
+  it('round-trips through the URL, closing the ring again', () => {
+    const search = searchForArea({ kind: 'drawn', geometry: polygon });
+    expect(areaFromSearch(search)).toEqual({ kind: 'drawn', geometry: polygon });
+  });
+
+  it('rounds to 5 decimals, the precision the API serves', () => {
+    const precise = {
+      type: 'Polygon' as const,
+      coordinates: [
+        [
+          [2.1600004999, 41.39],
+          [2.17, 41.39],
+          [2.17, 41.397],
+          [2.1600004999, 41.39],
+        ],
+      ],
+    };
+    expect(searchForArea({ kind: 'drawn', geometry: precise })).toContain('2.16,41.39');
+  });
+
+  it.each([
+    ['', 'no parameter'],
+    ['?area=', 'empty'],
+    ['?area=2.16,41.39,2.17,41.39', 'too few points for a polygon'],
+    ['?area=2.16,41.39,2.17,41.39,2.17', 'odd number of coordinates'],
+    ['?area=2.16,41.39,2.17,nope,2.17,41.397', 'not a number'],
+    ['?area=200,41.39,2.17,41.39,2.17,41.397', 'out of range'],
+  ])('falls back to the district for %s (%s)', (search) => {
+    expect(areaFromSearch(search)).toEqual(districtArea());
   });
 });

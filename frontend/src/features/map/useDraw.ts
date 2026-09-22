@@ -69,10 +69,18 @@ export function useDraw(map: MapLibreMap | null): UseDrawResult {
     }
   }, [mode, map]);
 
-  // "Clear drawing" (from either view) resets the area to the district: drop the shape too.
+  // Keep the drawn shape in step with the store: cleared for the district, and restored when
+  // the area came from the URL (a shared link must show the polygon it computed, not a bare map).
   useEffect(() => {
-    if (area.kind === 'district') drawRef.current?.clear();
-  }, [area]);
+    const draw = drawRef.current;
+    if (draw === null || map === null) return;
+    draw.clear();
+    if (area.kind === 'drawn') {
+      draw.addFeatures([
+        { type: 'Feature', geometry: area.geometry, properties: { mode: 'polygon' } },
+      ]);
+    }
+  }, [area, map]);
 
   return { drawProblem };
 }

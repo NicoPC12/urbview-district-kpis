@@ -101,9 +101,10 @@ Other commands (`make help` lists them all): `make test`, `make lint`, `make typ
 - [`backend/pipeline/derive_bands.py`](backend/pipeline/derive_bands.py) — how every uncited
   band boundary was derived (grid, minimum denominator, P33/P67), and the sidewalk-coverage
   measurement that changed the pedestrian KPI's definition.
-- [`docs/reference-areas/`](docs/reference-areas/) — two 0.317 km² polygons (the Sant Antoni
-  superblock, an Aragó corridor) with their five-KPI comparison in NOTES; paste either into
-  the API or draw it to reproduce.
+- [`docs/reference-areas/`](docs/reference-areas/) — the two polygons behind the A/B table in
+  NOTES. The drawn area lives in the URL, so open them directly:
+  **A, Sant Antoni superblock:** `http://localhost:5173/?area=2.15326,41.38205,2.15668,41.38457,2.16331,41.37945,2.15989,41.37693`
+  **B, Aragó corridor:** `http://localhost:5173/?area=2.17846,41.40463,2.18181,41.40206,2.17503,41.39706,2.17168,41.39963`
 - [`backend/warehouse/connection.py`](backend/warehouse/connection.py) — one connection per
   process, a cursor per request, and a stat-guarded reopen so `make load-data` and rebuilds
   are picked up by a running server.

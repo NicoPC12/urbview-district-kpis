@@ -30,6 +30,7 @@ const SQUARE = {
 };
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   useAppStore.setState({
     area: districtArea(),
     activeKpiKey: null,
@@ -65,6 +66,35 @@ describe('App', () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId('kpi-value-low_speed_street_share')).toHaveTextContent('50.7 %');
+    });
+  });
+
+  it('opens the area named in the URL, and drawing writes the URL back', async () => {
+    window.history.replaceState(null, '', '/?area=2.16,41.39,2.17,41.39,2.17,41.397,2.16,41.397');
+    render(<App />);
+
+    // URL -> store -> query: the drawn-area numbers, not the district's.
+    await waitFor(() => {
+      expect(screen.getByTestId('kpi-value-low_speed_street_share')).toHaveTextContent('88.2 %');
+    });
+    expect(useAppStore.getState().area).toEqual({ kind: 'drawn', geometry: SQUARE });
+
+    // Clearing the drawing takes the parameter back out.
+    act(() => {
+      useAppStore.getState().clearArea();
+    });
+    await waitFor(() => {
+      expect(window.location.search).toBe('');
+    });
+    expect(await screen.findByTestId('kpi-value-low_speed_street_share')).toHaveTextContent(
+      '50.7 %',
+    );
+
+    act(() => {
+      useAppStore.getState().setArea({ kind: 'drawn', geometry: SQUARE });
+    });
+    await waitFor(() => {
+      expect(window.location.search).toBe('?area=2.16,41.39,2.17,41.39,2.17,41.397,2.16,41.397');
     });
   });
 
