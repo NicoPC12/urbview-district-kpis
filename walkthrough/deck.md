@@ -7,27 +7,17 @@ title: UrbView — reading a district from Overture alone
 description: Walkthrough of the UrbView take-home — Eixample, Barcelona, Overture 2026-08-19.0
 ---
 
-<!-- _class: title -->
-<!-- _paginate: false -->
-
 # Reading a district from open map data
 
 ## Eixample, Barcelona · 7.51 km² · Overture Maps `2026-08-19.0`
 
-**What can a planner honestly read from Overture alone —
-and what can they not?**
-
----
-
-# The question
-
-## One source, no gaps filled in
-
 <div class="cols cols--wide-left">
 <div>
 
-Overture Maps is the **only** source. No OSM top-up, no municipal open data, no GTFS.
-Where Overture is thin, that is a **finding**, not a hole to patch.
+**What can a planner honestly read from Overture alone — and what can they not?**
+
+Overture is the **only** source: no OSM top-up, no municipal open data, no GTFS. Where
+Overture is thin, that is a **finding**, not a hole to patch.
 
 No socioeconomic data anywhere — not as a KPI, not as a denominator. Denominators are
 street length, segment count or building count.
@@ -40,8 +30,8 @@ polygon; every number recomputes for that polygon alone.
 
 ### Why Eixample
 
-7.51 km², a grid dense enough that a drawn block has real sample sizes, and a place with a
-**known intervention** to test against: the Sant Antoni superblock.
+7.51 km², a grid dense enough that a drawn block still has real sample sizes, and a place
+with a **known intervention** to test against: the Sant Antoni superblock.
 
 </div>
 </div>
@@ -98,6 +88,37 @@ Same length and width, east of the axis
 </div>
 
 **The intervention is in the data:** Comte Borrell and Consell de Cent are `living_street` at 10 km/h.
+
+---
+
+# One state, read both ways
+
+## A dashboard category highlights the map; a map feature explains its contribution
+
+<div class="cols">
+<div>
+
+![w:500](assets/05a-dashboard-to-map.png)
+
+**Dashboard → map.** Clicking the *≤ 30 km/h* bar emphasises those streets and dims the rest
+— no refetch, the layer is already loaded.
+
+<span class="small"><code>toggleCategory</code> → <code>emphasisExpression</code> → <code>setPaintProperty</code></span>
+
+</div>
+<div>
+
+![w:500](assets/05b-map-to-dashboard.png)
+
+**Map → dashboard.** Clicking a street names it and says what it contributes to the active
+KPI, from the loaded layer.
+
+<span class="small"><code>selectFeature</code> → <code>describeContribution</code> — one pure rule per KPI</span>
+
+</div>
+</div>
+
+<span class="small">Map and dashboard never import each other: they meet in one store that holds selection only.</span>
 
 ---
 
@@ -210,54 +231,31 @@ Numbers live **once**, in TanStack Query keyed by the area. The store holds sele
 
 | Chosen | Rejected | Why |
 |---|---|---|
-| **DuckDB + GeoParquet** | PostGIS | The extraction path *is* GeoParquet; one engine end to end, no load step, and the company already reads Parquet this way |
-| **REST + OpenAPI** | GraphQL | The rubric wants *generated* client types; `openapi-typescript` delivers that for a fraction of the setup in a 10-hour budget |
-| **Postgres for metadata only** | Everything in Postgres, or nothing | Labels, bands and citations become **auditable rows** a planner can edit in the admin; no geometry, so no duplicated source of truth |
-| **Prepared extract, public data repo** | Committing the extract, or S3 every time | Script committed, data not — and a reviewer is running in 15 minutes |
-| **OpenFreeMap basemap** | No basemap | Cartographic context only; no KPI reads it, nothing joins to it |
+| **DuckDB + GeoParquet** | PostGIS | The extraction path *is* GeoParquet: one engine end to end, no load step |
+| **REST + OpenAPI** | GraphQL | Generated client types for a fraction of the setup |
+| **Postgres for metadata only** | All of it, or none | Bands and citations become rows a planner can audit |
+| **Prepared extract, public data repo** | Commit it, or hit S3 | Script committed, data not; running in 15 minutes |
+| **OpenFreeMap basemap** | No basemap | Cartographic context only; no KPI reads it |
 
----
-
-# Where the computation happens
-
-<div class="cols cols--wide-left">
+<div class="cols">
 <div>
 
-```sql
-WITH clipped AS (
-  SELECT class, is_carriageway, max_speed_kmh,
-         CASE WHEN ST_CoveredBy(geom_m, area_m())
-              THEN length_m
-              ELSE ST_Length(
-                ST_Intersection(geom_m, area_m()))
-         END AS len_m
-  FROM segments
-  WHERE is_carriageway
-    AND ST_Intersects(geom_m, area_m())
-)
-SELECT 100.0 * sum(len_m)
-         FILTER (WHERE max_speed_kmh <= 30)
-       / nullif(sum(len_m) FILTER (
-           WHERE max_speed_kmh IS NOT NULL), 0)
-FROM clipped;
-```
+| Area binding | Plan | District |
+|---|---|---|
+| Temp-table join | SPATIAL_JOIN | 13.5 ms |
+| Inlined WKT | RTREE | 4.6 ms |
+| Prepared `?` | RTREE | 5.6 ms |
+| **Macro over `SET VARIABLE`** | RTREE | **3.6 ms** |
 
 </div>
 <div>
 
-### The area binding matters
+### DuckDB pays off only if the R-tree is used
 
-| How the area is bound | Plan | District |
-|---|---|---|
-| Temp-table join | SPATIAL_JOIN | 13.5 ms |
-| Inlined WKT | RTREE_INDEX_SCAN | 4.6 ms |
-| Prepared `?` | RTREE_INDEX_SCAN | 5.6 ms |
-| **Macro over `SET VARIABLE`** | RTREE_INDEX_SCAN | **3.6 ms** |
+Measured with `EXPLAIN`: the index is used only when the predicate argument is **constant at
+plan time**. Hence a macro over a session variable, registered **once per request**.
 
-DuckDB uses the R-tree only when the predicate argument is **constant at plan time**.
-
-**No Python loop ever touches a geometry** — clipping, length, distance and aggregation are
-all in SQL.
+**No Python loop ever touches a geometry** — one SQL statement per KPI.
 
 </div>
 </div>
