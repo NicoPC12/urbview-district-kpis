@@ -8,6 +8,8 @@ data/
 *.duckdb.wal
 *.parquet
 *.geojson
+# ...except the two reference-area polygons quoted in NOTES.md (< 1 kB each).
+!docs/reference-areas/*.geojson
 *.geojsonseq
 *.gpkg
 *.shp
@@ -18,6 +20,8 @@ data/
 # Exception: tiny synthetic fixtures used by the KPI tests are intentionally
 # tracked. They must stay small enough to read by hand.
 !backend/tests/fixtures/**/*.geojson
+# ...except the two reference-area polygons quoted in NOTES.md (< 1 kB each).
+!docs/reference-areas/*.geojson
 
 # ---------------------------------------------------------------------------
 # Secrets and local config

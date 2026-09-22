@@ -1,0 +1,36 @@
+{
+ "type": "Feature",
+ "properties": {
+  "name": "a_sant_antoni_superblock",
+  "description": "Carrer del Comte Borrell from Tamarit to Consell de Cent (Sant Antoni superblock and the Consell de Cent green axis), 200 m each side",
+  "km2": 0.317,
+  "epsg25831_wkt": "POLYGON((429748.9 4580942.1, 429200.0 4581515.2, 429488.9 4581791.9, 430037.8 4581218.8, 429748.9 4580942.1))"
+ },
+ "geometry": {
+  "type": "Polygon",
+  "coordinates": [
+   [
+    [
+     2.153256,
+     41.382047
+    ],
+    [
+     2.156679,
+     41.384565
+    ],
+    [
+     2.163309,
+     41.379451
+    ],
+    [
+     2.159887,
+     41.376934
+    ],
+    [
+     2.153256,
+     41.382047
+    ]
+   ]
+  ]
+ }
+}

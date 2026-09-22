@@ -1,81 +1,111 @@
 # NOTES — KPI reference
 
-> **Status: first draft (Phase 0, 2026-09-19).** The set is decided; the SQL is not written yet.
-> Numbers quoted here are from [`docs/recon.md`](docs/recon.md) (Overture `2026-08-19.0`,
-> l'Eixample, 7.508 km²). This file becomes the reviewer's reference table in Phase 7.
+Overture Maps release `2026-08-19.0`, district l'Eixample (Barcelona), 7.508 km². Every
+figure below was regenerated on 2026-09-22: KPI figures from the current warehouse, the
+"Rejected KPIs" and coverage numbers from a fresh `pipeline/recon.py` run against the same
+release (those themes are not loaded into the warehouse). Every band boundary is **cited**
+(URL and sentence), **derived** (method in [`docs/derived_bands.md`](docs/derived_bands.md),
+re-run with `make derive-bands`) or **chosen** with the reason. The argument belongs in the
+walkthrough.
 
-Every band boundary below either cites a source I have read (with the URL and the quoted
-sentence) or is marked **chosen** with the reasoning. Nothing is cited from memory.
+## KPIs
 
-## The set
-
-| # | Key | Type | Denominator | Why this denominator |
-|---|---|---|---|---|
-| 1 | `low_speed_street_share` | share (%) | carriageway km **with a mapped speed limit** | Dividing by all carriageway km would let the 11 % of segments with no mapped limit depress the value for mapping reasons, not street reasons. The coverage share is returned alongside the value. |
-| 2 | `crossing_density` | density (per km) | carriageway km | Per km², a polygon drawn over a park scores badly for no meaningful reason. Crossings exist to cross carriageways, so carriageway length is the natural base. |
-| 3 | `pedestrian_network_share` | share (%) | total network km (all `subtype='road'` classes) | Share of the whole mapped network that is pedestrian-only geometry. |
-| 4 | `green_space_distance_p50` | distance (m) | building count (centroids) | The population is "homes"; Overture has no population, buildings are the legal proxy. |
-| 5 | `street_tree_density` (stretch) | density (per km) | carriageway km | Street trees line streets; area would reward parks twice. |
-
-**Carriageway** = `subtype = 'road'` and `class NOT IN ('footway', 'steps', 'path', 'cycleway', 'pedestrian')`.
-**Total network** = every `subtype = 'road'` segment regardless of class. Rail (`subtype = 'rail'`) is never counted.
-
-## Reference table
-
-| KPI | What it measures | How it is computed (words) | Bands | Source | What it does **not** claim |
+| KPI | What it measures | How it is computed | Bands | Source | What it does **not** claim |
 |---|---|---|---|---|---|
-| `low_speed_street_share` | Share of carriageway length whose posted limit is ≤ 30 km/h | Clip carriageway segments to the area; sum length where the first `speed_limits` rule's `max_speed.value` ≤ 30 (unit km/h); divide by summed length of clipped carriageway that has any `speed_limits` rule. Also return `coverage` = mapped-limit km / all carriageway km. | < 40 % **Mostly 50**; 40–70 % **Mixed**; ≥ 70 % **Calmed** | **Threshold 30 km/h — citation:** Real Decreto 970/2020, de 10 de noviembre (BOE-A-2020-13969, published 11 Nov 2020, art. 50 in force six months later). New art. 50.1 of the Reglamento General de Circulación sets urban limits of 20 km/h on single-platform streets, **30 km/h on roads with one lane per direction**, 50 km/h with two or more lanes per direction. https://www.boe.es/buscar/doc.php?id=BOE-A-2020-13969 . **Band boundaries 40/70 — chosen:** the district reads 50.7 % overall; bands are placed so a superblock interior and a through-route corridor land in different bands. | Posted limit, not observed speed. Segments without a mapped limit (11 % of carriageway km in the district; 88 % of `service`) are **excluded from both numerator and denominator, not assumed fast**. Says nothing about enforcement, crashes or lane count. |
-| `crossing_density` | Pedestrian crossings per km of carriageway | Count `infrastructure` points with `class = 'crossing'` inside the area (a point is in or out, no clipping); divide by clipped carriageway km. | < 10 **Sparse**; 10–20 **Moderate**; ≥ 20 **Dense** | **Chosen.** No standard I could verify prescribes crossings per km. District mean is 22.6/km; bands are set at half and roughly the mean so that blocks with fewer crossings than the district norm read as such. | A crossing point carries no quality: signalised, raised, marked, lit or not. High density does not mean safe crossing; low density in a pedestrianised area is meaningless (there is no carriageway to cross). |
-| `pedestrian_network_share` | Share of mapped network length that is pedestrian-only | Clip all `subtype='road'` segments; numerator = length where `class IN ('footway', 'pedestrian', 'steps', 'path')`; denominator = all clipped length. | < 30 % **Car-dominated**; 30–60 % **Mixed**; ≥ 60 % **Walking-first** | **Chosen.** District reads 52 %. Bands bracket the district figure so pedestrianised streets and superblocks (higher) and through-route blocks (lower) separate. | **Comparability caveat:** Overture (from OSM) maps sidewalks as separate `footway/sidewalk` geometry in Barcelona (1,741 sidewalk segments in the district). That inflates pedestrian km relative to a city where sidewalks are attributes of the road, so this number cannot be compared across cities with different mapping conventions. It does not measure sidewalk width, quality or continuity. |
-| `green_space_distance_p50` | Median straight-line distance from a building to the nearest mapped green space of ≥ 0.5 ha | Population = centroids of buildings intersecting the area. Targets = `land_use` polygons with green subtypes (`park`, `horticulture`, `managed`, `recreation`, `agriculture`) **and area ≥ 0.5 ha** (the WHO size floor), taken from the district plus a 1.5 km margin so edge buildings see greens outside the district. Distance = `ST_Distance` in EPSG:25831 to the nearest target; report the median. **Buildings with no target within the extract margin are not excluded and not clamped: the extract carries every ≥ 0.5 ha green within 1.5 km of the district bbox, and Phase 3 asserts that no building's nearest target lies beyond that margin (if one does, the number is reported as `> 1500 m` and flagged in `meta`).** | ≤ 300 m **Within WHO rule of thumb**; 300–600 m **Beyond**; > 600 m **Far** | **Threshold 300 m and 0.5 ha — citation:** WHO Regional Office for Europe, *Urban green spaces: a brief for action* (2017), p. 11: "As a rule of thumb, urban residents should be able to access public green spaces of at least 0.5–1 hectare within 300 metres' linear distance (around 5 minutes' walk) of their homes." https://www.who.int/europe/publications/i/item/9789289052498 . **600 m boundary — chosen:** double the WHO distance; nothing in the brief prescribes a second band. | Straight-line, not walking distance; a park across a railway reads as near. Only polygons Overture carries — Eixample's interior courtyard gardens are largely unmapped, and small pocket greens under 0.5 ha are deliberately ignored. Building centroids are not people. |
-| `street_tree_density` | Mapped street trees per km of carriageway | Count `land` points with `class = 'tree'` inside the area; divide by clipped carriageway km. | < 20 **Sparse**; 20–50 **Moderate**; ≥ 50 **Dense** | **Chosen.** District reads 53/km with every full 1-km cell between 752 and 2,001 trees. Bands sit at the district mean and at less than half of it. | Tree points are a shade/greenness proxy, not a safety measure. Canopy size, species and health are unknown; a sapling counts as a plane tree. Mapping is OSM-derived and can be uneven outside the district. |
+| `low_speed_street_share` — *Carriageway limited to 30 km/h or less* | Share of carriageway length inside the area whose posted limit is ≤ 30 km/h. District: **50.7 %**. | Clip carriageway segments (`subtype = 'road'`, class not footway/steps/path/cycleway/pedestrian) to the area with `ST_Intersection`; sum clipped length where the segment's first non-ranged `speed_limits` rule is ≤ 30 km/h; divide by the clipped length that has any mapped limit. **Denominator: carriageway km with a mapped limit** — 11.2 % of carriageway km has no mapped limit (88 % of `service` roads); dividing by all carriageway km would let mapping gaps depress the share. The coverage share (89.0 % district-wide) is returned as context. | ≤ 42 % **Lower third** · ≤ 60 % **Middle third** · > 60 % **Upper third** | **30 km/h — citation.** Real Decreto 970/2020 (BOE-A-2020-13969), new art. 50.1 RGC: "20 km/h en vías que dispongan de plataforma única de calzada y acera; 30 km/h en vías de un único carril por sentido de circulación; 50 km/h en vías de dos o más carriles por sentido" — in force six months after 11 Nov 2020. https://www.boe.es/buscar/doc.php?id=BOE-A-2020-13969 . **42 / 60 — derived:** P33 / P67 of the KPI over 125 cells of 250 m (31 cells with < 0.5 km of mapped carriageway dropped), rounded to two significant figures (41.6 → 42, 60.2 → 60). | A posted limit, not an observed speed. Unmapped limits are excluded from both sides, not assumed fast. Says nothing about enforcement, crashes or lane count. Bands are relative to Eixample's own distribution, not an absolute standard. |
+| `crossing_density` — *Pedestrian crossings per km of carriageway* | Mapped crossing points per km of carriageway inside the area. District: **22.6 /km** (3,624 crossings, 160.3 km). | Count `infrastructure` points with `class = 'crossing'` inside the area (in or out); divide by clipped carriageway km. **Denominator: carriageway km** — crossings exist to cross carriageways; per km² a polygon over a park would score badly for no street reason. | ≤ 19 **Lower third** · ≤ 26 **Middle third** · > 26 **Upper third** | **Derived.** No standard I could verify prescribes crossings per km. P33 / P67 over 129 cells (27 dropped): 19.5 → 19, 26.2 → 26. | A crossing point has no quality: signalised, raised, marked or lit are unknown. More does not mean safe to cross. A pedestrianised block with no carriageway reads as *no data*, not zero. **In shared-space or living streets, fewer marked crossings can mean the whole street has become crossable; a low reading there is not a deficit.** Bands are relative to Eixample's own distribution. |
+| `pedestrian_network_share` — *Street network that is pedestrian-only (sidewalks excluded)* | Share of the mapped street network length inside the area that is pedestrian-only geometry, with sidewalk and crosswalk geometry excluded from both sides. District: **20.6 %** (59.5 of 288.9 km). | Clip every `subtype = 'road'` segment except `subclass IN (sidewalk, crosswalk)`; numerator = clipped length with `class IN (footway, pedestrian, steps, path)`; denominator = all clipped length. **Denominator: street network km** — what share of the street network is given over to walking, which is what a planner can change (pedestrianise a street). **Why sidewalks are out:** Overture maps only about half of Eixample's sidewalks as separate lines — mapped sidewalk km per carriageway km is 1.09 at the median but ranges 0.68 (P10) to 1.54 (P90) across 250 m cells, against ~2 for a fully mapped grid. With them in, the district read 52.1 % and the per-cell values sat in 49.9–55.2 %: the KPI measured OSM sidewalk coverage. Without them it reads 20.6 % and spans 0–71 % across cells. | ≤ 14 % **Lower third** · ≤ 24 % **Middle third** · > 24 % **Upper third** | **Derived.** P33 / P67 over 136 cells (20 dropped): 13.8 → 14, 23.9 → 24. | Street space given over to walking, not sidewalk provision. Says nothing about sidewalk width, quality or continuity. Bands are relative to Eixample's own distribution. |
+| `green_space_distance_p50` — *Median distance to a public green space of at least 0.5 ha* | Median straight-line distance from a building centroid inside the area to the nearest mapped public green space ≥ 0.5 ha, wherever it lies. District: **362 m**; 40.7 % of 8,397 buildings within 300 m. | Population = building centroids inside the area (clipped). Targets = `land_use` polygons ≥ 0.5 ha in the **public classes** `park/park`, `park/village_green`, `horticulture/garden` (Barcelona's municipal *Jardins de …*, `leisure=garden` in OSM) and `recreation/recreation_ground` — 159 polygons, searched in the **whole warehouse** (district + 1.5 km), never clipped. Excluded as not public green space (41 polygons): 20 `pitch`, 4 `stadium`, 3 `marina` (Port Olímpic), 9 unnamed `managed/grass`, 3 `agriculture` (a meadow, a farmyard), 1 `plant_nursery`, 1 `track`. **Access was not verified per feature:** `garden` is kept because the named ones here are municipal (*Jardins de Joan Brossa*, *Laribal*, *Mossèn Costa i Llobera*, the Jardí Botànic), but a private garden tagged the same way would also be counted. `ST_Distance` in EPSG:25831 to the nearest; median. **Denominator: building count** — the population is "homes"; Overture has no population, buildings are the legal proxy. | ≤ 300 m **Within WHO rule of thumb** · ≤ 600 m **Beyond** · > 600 m **Far** | **300 m and 0.5 ha — citation.** WHO Regional Office for Europe, *Urban green spaces: a brief for action* (2017), p. 11: "As a rule of thumb, urban residents should be able to access public green spaces of at least 0.5–1 hectare within 300 metres' linear distance (around 5 minutes' walk) of their homes." https://www.who.int/europe/publications/i/item/9789289052498 (PDF via the page's Download link). **600 m — chosen:** double the WHO distance; nothing prescribes a second band. Restricting to public classes moved the district median from 362.03 m to 362.49 m. | Straight-line, not walking distance: a park across a railway reads as near. Only polygons Overture carries count — Eixample's courtyard gardens are largely unmapped, greens under 0.5 ha are ignored by design. **Linear street greening — tree-lined avenues and green axes such as Consell de Cent — is invisible to this KPI by construction: it measures distance to green *areas* of at least 0.5 ha.** Building centroids are not people. |
+| `street_tree_density` — *Street trees per km of carriageway* | Mapped individual trees per km of carriageway inside the area. District: **55.4 /km** (8,880 trees). | Count `land` points with `class = 'tree'` inside the area; divide by clipped carriageway km. **Denominator: carriageway km** — street trees line streets; per km² would reward parks twice. | ≤ 20 **Lower third** · ≤ 69 **Middle third** · > 69 **Upper third** | **Derived.** P33 / P67 over 129 cells (27 dropped): 20.2 → 20, 69.0 → 69. | A shade and greenness proxy, not a safety measure. Canopy, species and health unknown; a sapling counts as a plane tree. Tree mapping is OSM-derived and can be uneven outside this district. Bands are relative to Eixample's own distribution. |
+
+`sample_size` is the number of **carriageway segments** (speed, crossings, trees: 1,754 in
+the district), **street-network segments** (pedestrian: 3,562) or **buildings** (green:
+8,397); the card says which. `value` is `null` when it is 0.
+
+## Derived bands — the method
+
+250 m grid over the district in EPSG:25831, each cell clipped to the district (156 cells);
+each KPI computed per cell with the production SQL; cells with **< 0.5 km of denominator**
+dropped (**chosen** — one segment would decide the value; drops 20–31 cells per KPI);
+cutoffs = 33rd and 67th percentiles of the per-cell values, rounded to two significant
+figures. Labels are *Lower / Middle / Upper third* because that is all they mean. Full table:
+[`docs/derived_bands.md`](docs/derived_bands.md). The insight sentences read the band, not
+their own thresholds, so an admin edit moves them too.
+
+## Two reference areas (0.317 km² each, GeoJSON in [`docs/reference-areas/`](docs/reference-areas/))
+
+**A** — Carrer del Comte Borrell from Tamarit to Consell de Cent, 200 m each side: the Sant
+Antoni superblock and the Consell de Cent green axis. **B** — Carrer d'Aragó centred on
+Carrer de Sardenya, same length and width, east of where the axis ends.
+
+| KPI | A · superblock | B · Aragó corridor | District |
+|---|---|---|---|
+| Carriageway ≤ 30 km/h | **63.6 %** (Upper third) | 47.7 % (Middle) | 50.7 % |
+| Crossings / km | 20.9 (Middle) | **31.2** (Upper) | 22.6 |
+| Pedestrian-only street network | **26.0 %** (Upper) | 16.7 % (Middle) | 20.6 % |
+| Median distance to public green ≥ 0.5 ha | 595 m (Beyond; 0 % within 300 m) | **150 m** (Within; 87 %) | 362 m |
+| Street trees / km | 52.7 (Middle) | 50.3 (Middle) | 55.4 |
+
+Overture does carry the intervention: Comte Borrell and Consell de Cent are `living_street`
+at 10 km/h for 1.62 km and 2.97 km respectively. **Two rows must not be read as A being
+worse.** Crossings: Comte Borrell is shared space at 10 km/h, so the street is crossable
+along its length and marked crossings are no longer needed — this KPI *falls* where a
+planner has succeeded. Green: the Consell de Cent axis is linear greening, which a
+"≥ 0.5 ha polygon" rule cannot see by construction; B's 150 m is Sagrada Família's gardens.
+Both caveats are on the cards, and they are why there is no composite score.
 
 ## Rules that apply to every KPI
 
-- **Clipping:** linear features contribute the length of their part inside the drawn area
-  (`ST_Intersection`), not all-or-nothing. Points are in or out. Polygons used as targets
-  (green spaces) are never clipped — a park half outside the area is still a park.
-- **Projection:** all metres in EPSG:25831 (ETRS89 / UTM 31N), `always_xy := true` on every
-  transform (CLAUDE.md rule 9). Never EPSG:3857 — its scale factor at 41.4° N is ~1.33.
-- **Denominators** are only ever length, area, building count or segment count (CLAUDE.md
-  rule 2). No socioeconomic quantity appears anywhere.
-- **Empty is a state:** `sample_size = 0` returns `value: null`, not an error and not zero.
-- **Palette, deliberately not a traffic light.** Band pills are never red/amber/green: a red
-  card reads as "this place is dangerous", exactly the claim these numbers cannot support
-  (CLAUDE.md rule 4). Bands are coloured with a single-hue sequential scale and
-  `lower_is_better` only *orders* them. Map categories (speed bands, segment classes) are
-  categorical and keep distinct hues, but none of them is red either.
-- **The basemap is not a data source.** The map draws OpenFreeMap's `positron` vector tiles
-  underneath as cartographic context (streets and labels to orient by). No KPI reads it,
-  nothing is joined to it, and every number, feature and colour on screen comes from the
-  Overture warehouse. It is keyless and overridable (`VITE_BASEMAP_STYLE_URL`).
-- **Areas partly or fully outside the district.** The warehouse holds features for the
-  district only, so a polygon crossing the boundary is measured on its inside part. The
-  response says so: `area.district_overlap_share` (area of intersection with the district
-  over area of the polygon, both in EPSG:25831) and an insight sentence. A polygon entirely
-  outside is a 200 with `sample_size = 0`, not an error.
-- **`access_restrictions` is not read by any KPI.** Phase 0 found that its dominant entry is a
-  one-way rule (`denied` + `heading = 'backward'`, no mode) which naive logic would read as
-  "closed" and thereby remove 80 % of residential streets. The chosen KPIs are class-based
-  and never touch the column; if a future KPI does, it must filter on `when.mode` and treat
-  heading-only rules as one-way, not as denials.
+- **Area.** Every KPI and every map layer is measured on *drawn polygon ∩ district* (the
+  warehouse stores whole geometries of segments that touch the district). The response
+  carries `district_overlap_share` (intersection area / drawn area, in EPSG:25831) and an
+  insight says so when it is below 95 %. A polygon entirely outside is a 200 with
+  `sample_size = 0`, not an error.
+- **Clipping.** Linear features contribute the length of their part inside the area
+  (`ST_Intersection`); points are in or out; the denominator is clipped like the numerator.
+  Nearest-neighbour targets (green spaces) are never clipped and are searched beyond the
+  area and beyond the district — that is why the extract keeps them 1.5 km past the bbox.
+- **Projection.** Every metre in EPSG:25831 (ETRS89 / UTM 31N); every `ST_Transform` passes
+  `always_xy := true` (DuckDB otherwise honours EPSG's lat-lon axis order for 4326 and puts
+  Barcelona 4 700 km away). Never EPSG:3857: its scale factor at 41.4° N is ~1.33.
+- **Coverage warning at 75 % — chosen.** When under 75 % of an area's carriageway has a
+  mapped speed limit, an insight says the speed figure rests on a minority of the streets
+  (`LIMIT_COVERAGE_WARN` in `apps/kpis/insights.py`). Picked as "a clear majority"; the
+  district sits at 89 %, so it fires only where mapping is genuinely thin. It changes no
+  KPI value — only whether the sentence appears.
+- **Denominators** are only ever length, building count or segment count. No socioeconomic
+  quantity appears anywhere, as a KPI, a denominator or a control.
+- **Palette.** Band pills are a single-hue blue ramp ordered by `lower_is_better`, never
+  red/amber/green: a red card reads as "dangerous", the one claim these numbers cannot make.
+  Map categories keep distinct hues; none is red.
+- **Basemap.** OpenFreeMap `positron` tiles are drawn underneath as cartographic context
+  only. No KPI reads them; every number, feature and colour comes from the Overture
+  warehouse. Keyless; overridable with `VITE_BASEMAP_STYLE_URL`.
+- **Release.** Overture `2026-08-19.0`, pinned in `backend/pipeline/release.py` and echoed
+  in `meta.overture_release`; `meta.warehouse_build` identifies the build.
+- **`access_restrictions` is not read.** Its dominant entry in the district is a one-way
+  rule (`denied` + `heading = 'backward'`, no mode) that naive logic would read as "closed"
+  and drop 80 % of residential streets. Any future KPI must filter on `when.mode` first.
 
-## Rejected KPIs (kept as evidence, quoted in the walkthrough)
+## Rejected KPIs (numbers from `pipeline/recon.py`, re-run 2026-09-22)
 
-| Candidate | Rejected because | The number |
+| Candidate | Rejected because | The number that decided it |
 |---|---|---|
-| `lit_street_share` | **Coverage.** Overture carries a sample of the district's lamps, concentrated where individual mappers surveyed. The KPI would measure mapping effort, not lighting, and a low reading would present as "dark street". | 236 lamps in 7.5 km²; 1 per 707 m of street; 65 % in two 1-km cells; a full cell with 59 km of road has 0. Lamps are `subtype='transportation'`, not `utility`. |
-| `transit_stop_distance_p50` | **Saturation.** Cleanest data in the extract, but no spatial variance: every polygon reads "excellent", which makes draw-and-recompute look broken. | 287 bus stops + 27 subway stations; building p50 = 79 m, p90 = 144 m; **100 %** of 8,397 buildings within 300 m. |
-| `land_use_mix` | Land-use polygons cover 30 % of the district, 61 % of that one class. An entropy over it measures mapping coverage. | 2.23 km² mapped of 7.51; residential 1.37 km². |
-| `green_share` | Replaced by the distance KPI: varies less across Eixample and duplicates its data. | Green union 0.44 km² = 5.9 %; water 0.1 %. |
-| `junction_density` | Computable (GREEN) but says least to a safety reader; kept as fallback. | 2,731 connectors with degree ≥ 3 = 364/km². |
+| `lit_street_share` | Overture carries a sample of the district's lamps, concentrated where individual mappers surveyed; the KPI would measure mapping effort and a low reading would present as "dark street". | 236 lamps in 7.5 km² — 1 per 707 m of carriageway; 65 % of them in two 1-km cells, while a full cell with 58.9 km of road has 0. |
+| `transit_stop_distance_p50` | No spatial variance: every polygon reads "excellent", so draw-and-recompute looks broken. | 100 % of 8,397 buildings within 300 m of a stop (p50 79 m, p90 144 m). |
+| `land_use_mix` | An entropy over land-use polygons measures mapping coverage, not mix. | Land-use polygons cover 29.7 % of the district (2.23 of 7.51 km²), 61 % of that one class. |
+| `green_share` | Duplicates the distance KPI's data with less variance across Eixample. | Green union 0.44 km² = 5.9 % of the district. |
+| `junction_density` | Computable but says least to a safety reader; kept as the fallback. | 2,731 connectors of degree ≥ 3 (1,977 + 754) = 364 /km². |
 
-## Overture coverage gaps found (Phase 0)
+## Overture coverage gaps found
 
-- No `utility/street_lamp`; lamps are `transportation/street_lamp` and sparse (above).
-- No `road` struct; `speed_limits`, `road_flags`, `access_restrictions`, `road_surface` are
-  top-level columns. `speed_limits` is populated on 89 % of carriageway km.
-- Building `height` on 9.5 % of buildings; `num_floors` on 50 %.
-- Water: 0.1 % of the district (pools and basins); no natural water in Eixample.
-- `transit/stop_position` (391) duplicates bus stops and stations one-per-vehicle-position and
-  must never be counted as a stop.
+- Lamps are `infrastructure` `subtype = 'transportation'`, `class = 'street_lamp'`, not
+  `utility`; 236 in the district.
+- Sidewalks: 1,741 `footway/sidewalk` segments (169.4 km) plus 1,283 `crosswalk` (21.5 km)
+  against 1,883 carriageway segments — roughly half of a grid where every street has two
+  sidewalks. See the pedestrian KPI.
+- No `road` struct: `speed_limits`, `road_flags`, `access_restrictions` are top-level
+  columns. `speed_limits` covers 88.8 % of carriageway km, 12.1 % of `service` segments.
+- Building `height` on 796 of 8,397 buildings (9.5 %), `num_floors` on 4,227 (50.3 %).
+- Water is 0.10 % of the district (pools and basins); no natural water in Eixample.
+- `transit/stop_position` (391 rows) duplicates stops one-per-vehicle-position; never a stop.
