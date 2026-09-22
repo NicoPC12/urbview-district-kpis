@@ -11,7 +11,8 @@ BACKEND   := $(COMPOSE) exec -T backend
 FRONTEND  := $(COMPOSE) exec -T frontend
 
 .DEFAULT_GOAL := help
-.PHONY: help up down logs load-data extract warehouse types test test-backend test-frontend \
+.PHONY: help up down logs load-data extract warehouse publish-extract derive-bands types test \
+        test-backend test-frontend \
         lint lint-backend lint-frontend format
 
 help: ## List targets
@@ -43,6 +44,9 @@ warehouse: ## Rebuild data/warehouse.duckdb from data/raw/ (no download)
 
 publish-extract: ## Maintainer: upload data/raw/*.parquet as a GitHub release asset and refresh pipeline/manifest.json
 	python backend/pipeline/publish.py
+
+derive-bands: ## Recompute the derived KPI band boundaries from the warehouse into docs/derived_bands.md
+	$(BACKEND) python -m pipeline.derive_bands > docs/derived_bands.md
 
 # --- Types -------------------------------------------------------------------
 
