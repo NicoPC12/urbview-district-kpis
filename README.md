@@ -154,5 +154,13 @@ the network or needs the real extract).
   are `living_street` at 10 km/h; the superblock reads 63.6 % calmed against 47.7 % on an
   equal-sized Aragó corridor. No data lag to report there.
 
+## Walkthrough
+
+[`walkthrough/walkthrough.pdf`](walkthrough/walkthrough.pdf) — twelve slides: the district
+read, the two reference areas, what the numbers do not claim, where every threshold comes
+from, the three times the data measured the mappers, architecture, rejected alternatives,
+the SQL, four bugs worth knowing, and what breaks at 10×. Source: `walkthrough/deck.md`,
+exported with `make deck` (Marp, via Docker; the PDF is committed so no one has to).
+
 Architecture and conventions: [`CLAUDE.md`](CLAUDE.md). Reconnaissance evidence:
 [`docs/recon.md`](docs/recon.md). Configuration: [`.env.example`](.env.example).

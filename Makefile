@@ -11,7 +11,7 @@ BACKEND   := $(COMPOSE) exec -T backend
 FRONTEND  := $(COMPOSE) exec -T frontend
 
 .DEFAULT_GOAL := help
-.PHONY: help up down logs load-data extract warehouse publish-extract derive-bands types test \
+.PHONY: help up down logs load-data extract warehouse publish-extract derive-bands deck types test \
         test-backend test-frontend \
         lint lint-backend lint-frontend format
 
@@ -47,6 +47,13 @@ publish-extract: ## Maintainer: upload data/raw/*.parquet as a GitHub release as
 
 derive-bands: ## Recompute the derived KPI band boundaries from the warehouse into docs/derived_bands.md
 	$(BACKEND) python -m pipeline.derive_bands > docs/derived_bands.md
+
+# --- Walkthrough ---------------------------------------------------------------------
+
+# The official Marp image, not the app containers: rendering a PDF needs a Chromium, which
+# neither container has. The exported PDF is committed, so a reviewer never runs this.
+deck: ## Export walkthrough/deck.md to walkthrough/walkthrough.pdf (Marp, via Docker)
+	MSYS_NO_PATHCONV=1 docker run --rm --init -v "$(CURDIR):/home/marp/app" 		marpteam/marp-cli:v4.5.1 --allow-local-files --theme walkthrough/theme.css 		walkthrough/deck.md -o walkthrough/walkthrough.pdf
 
 # --- Types -------------------------------------------------------------------
 

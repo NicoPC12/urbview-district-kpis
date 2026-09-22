@@ -115,4 +115,7 @@ desktop.ini
 /walkthrough/*
 !/walkthrough/*.pdf
 !/walkthrough/*.md
+!/walkthrough/theme.css
 !/walkthrough/assets/
+# Marp preview renders; the deliverable is walkthrough/walkthrough.pdf, exported by `make deck`.
+/walkthrough/preview*
