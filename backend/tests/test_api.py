@@ -111,8 +111,8 @@ def test_all_three_request_forms_return_the_same_shape(
     assert bodies["district"]["area"]["km2"] == pytest.approx(4.0, abs=1e-3)
     low_speed = bodies["polygon"]["kpis"][0]
     assert low_speed["value"] == 100.0
-    assert low_speed["band"] == "Calmed"
-    assert low_speed["source"]["kind"] == "citation"
+    assert low_speed["band"] == "Upper third"
+    assert low_speed["source"]["kind"] == "derived"
     assert "breakdown" in low_speed and "breakdown_note" not in low_speed
     assert "breakdown" not in bodies["polygon"]["kpis"][1]  # crossings: deliberately none
     assert bodies["polygon"]["kpis"][1]["breakdown_note"].startswith("No breakdown")
@@ -242,7 +242,7 @@ def test_editing_a_definition_changes_the_next_response(
 ) -> None:
     body = {"polygon": square(0, 0, 1_000, 1_000)}
     before = post(client, body).json()["kpis"][0]
-    assert before["band"] == "Calmed"
+    assert before["band"] == "Upper third"
 
     row = KpiDefinition.objects.get(key="low_speed_street_share")
     row.label = "Edited in the admin"

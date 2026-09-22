@@ -92,6 +92,16 @@ export function KpiCard({ kpi, active, onActivate }: KpiCardProps) {
         )}
         {kpi.source.kind === 'chosen' && ' (chosen, not cited)'}
       </p>
+      {/* Four KPIs band against Eixample's own distribution and one against a WHO distance;
+          on one screen those must not read as the same kind of number. */}
+      {kpi.source.kind === 'derived' && (
+        <p
+          data-testid={`kpi-relative-${kpi.key}`}
+          className="mt-1 inline-block rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-900"
+        >
+          Relative bands — thirds of Eixample&rsquo;s 250 m cells, not an absolute standard
+        </p>
+      )}
     </article>
   );
 }

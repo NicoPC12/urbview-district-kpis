@@ -1,13 +1,19 @@
 -- pedestrian_network_share
 --
--- Share (%) of the mapped network length inside the area that is pedestrian-only geometry
--- (footway, pedestrian, steps, path).
+-- Share (%) of the street network length inside the area that is pedestrian-only geometry
+-- (pedestrian streets, footways, steps, paths) — EXCLUDING sidewalk and crosswalk geometry.
 --
---   value = 100 * clipped length(pedestrian classes) / clipped length(all road-subtype classes)
+--   value = 100 * clipped length(pedestrian classes, not sidewalk/crosswalk)
+--               / clipped length(all road-subtype classes, not sidewalk/crosswalk)
+--
+-- Why sidewalks are out (NOTES.md, pipeline/derive_bands.py): Overture maps Barcelona's
+-- sidewalks as separate `footway/sidewalk` lines, but only about half of them — the ratio of
+-- mapped sidewalk km to carriageway km varies from 0.7 to 1.5 across 250 m cells. With them
+-- in, the KPI measured OSM sidewalk coverage, not the street. Without them it measures street
+-- space given over to walking, which is also what a planner can change.
 --
 -- Both sides are clipped with ST_Intersection. Cycleways and carriageways are in the
--- denominator only. Comparability caveat (NOTES.md): sidewalks are separate geometry here,
--- which inflates pedestrian km relative to cities that map sidewalks as road attributes.
+-- denominator only.
 --
 -- Clipped length short-circuits to the precomputed length_m when the segment is entirely
 -- inside the area (ST_CoveredBy): 3x faster on the whole district, identical result.
@@ -23,6 +29,7 @@ WITH clipped AS (
                 ELSE ST_Length(ST_Intersection(s.geom_m, area_m())) END AS len_m
     FROM segments s
     WHERE ST_Intersects(s.geom_m, area_m())
+      AND coalesce(s.subclass, '') NOT IN ('sidewalk', 'crosswalk')
 ),
 by_class AS (
     SELECT class, sum(len_m) AS len_m

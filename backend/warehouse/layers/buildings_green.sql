@@ -10,7 +10,8 @@ WITH population AS (
     WHERE ST_Intersects(b.geom_m, area_m())
 ),
 targets AS (
-    SELECT g.id, g.geom_m FROM green_spaces g WHERE g.is_who_size
+    SELECT g.id, g.geom_m FROM green_spaces g
+    WHERE g.is_who_size AND (g.subtype, g.class) IN (SELECT * FROM public_green_classes)
 ),
 nearest AS (
     SELECT p.id, p.geom,

@@ -27,6 +27,7 @@ from pathlib import Path
 import duckdb
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
+SESSION_PATH = Path(__file__).resolve().parent / "session.sql"
 QUERIES_DIR = Path(__file__).resolve().parent / "queries"
 LAYERS_DIR = Path(__file__).resolve().parent / "layers"
 

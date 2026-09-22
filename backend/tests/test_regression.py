@@ -18,8 +18,8 @@ EXPECTED: dict[str, tuple[float, int]] = {
     # key: (value to 2 dp, sample_size)
     "low_speed_street_share": (50.73, 1435),
     "crossing_density": (22.60, 1754),
-    "pedestrian_network_share": (52.06, 6585),
-    "green_space_distance_p50": (362.03, 8397),
+    "pedestrian_network_share": (20.6, 3562),  # sidewalks and crosswalks excluded
+    "green_space_distance_p50": (362.49, 8397),  # public green classes only
     "street_tree_density": (55.38, 1754),
 }
 

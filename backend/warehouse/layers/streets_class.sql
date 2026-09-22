@@ -1,6 +1,7 @@
 -- layer: streets_class  (kpi: pedestrian_network_share)
 --
--- Every road-subtype segment touching the area, clipped in EPSG:25831 and served in EPSG:4326.
+-- Every road-subtype segment touching the area except sidewalk/crosswalk geometry (the KPI
+-- excludes it too, see the query), clipped in EPSG:25831 and served in EPSG:4326.
 -- `category` is the segment class, matching the KPI breakdown keys.
 
 WITH clipped AS (
@@ -11,6 +12,7 @@ WITH clipped AS (
                 ELSE ST_CollectionExtract(ST_Intersection(s.geom_m, area_m()), 2) END AS geom_m
     FROM segments s
     WHERE ST_Intersects(s.geom_m, area_m())
+      AND coalesce(s.subclass, '') NOT IN ('sidewalk', 'crosswalk')
 )
 SELECT to_json({
     'type': 'Feature',

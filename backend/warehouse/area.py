@@ -21,7 +21,7 @@ from typing import Any
 
 import duckdb
 
-from warehouse.connection import transform_to_m
+from warehouse.connection import SESSION_PATH, transform_to_m
 
 
 @dataclass(frozen=True)
@@ -108,6 +108,7 @@ def register_area(con: duckdb.DuckDBPyConnection, wkt_4326: str) -> None:
     con.execute(
         "CREATE OR REPLACE TEMP MACRO area_m() AS ST_GeomFromText(getvariable('area_wkt_m'))"
     )
+    con.execute(SESSION_PATH.read_text(encoding="utf-8"))  # shared per-request definitions
 
 
 def district_wkt(con: duckdb.DuckDBPyConnection, district_id: str) -> tuple[str, str, float]:

@@ -277,11 +277,12 @@ def test_every_kpi_declares_what_it_does_not_claim_and_a_source(kpis: tuple[Kpi,
 
 def test_band_assignment_uses_upper_bounds(kpis: tuple[Kpi, ...]) -> None:
     low_speed = next(k for k in kpis if k.key == "low_speed_street_share")
-    assert low_speed.band_for(39.9) == "Mostly 50"
-    assert low_speed.band_for(40) == "Mostly 50"
-    assert low_speed.band_for(69.9) == "Mixed"
-    assert low_speed.band_for(100) == "Calmed"
+    assert low_speed.band_for(41.9) == "Lower third"
+    assert low_speed.band_for(42) == "Lower third"
+    assert low_speed.band_for(59.9) == "Middle third"
+    assert low_speed.band_for(100) == "Upper third"
     assert low_speed.band_for(None) is None
+    assert low_speed.source.kind is registry.SourceKind.DERIVED
 
 
 def test_two_areas_produce_different_insights(

@@ -4,6 +4,9 @@ Each rule is a predicate over the computed results plus a template that always e
 least one computed number. Rules are ordered by how much they matter to a safety reader;
 the first ``MAX_INSIGHTS`` that fire are returned. Two areas with different values fire
 different rules and format different numbers, which is what "not hardcoded" means here.
+
+Rules never carry their own thresholds: they read the KPI's *band* (whose boundaries come
+from the database, derived or cited), so an edit in the admin moves the sentences too.
 """
 
 from __future__ import annotations
@@ -46,33 +49,50 @@ class Facts:
         result = self.results.get(key)
         return 0 if result is None else result.row.sample_size
 
+    def position(self, key: str) -> str | None:
+        """``"low"`` / ``"mid"`` / ``"high"``: which band the value fell in, first to last."""
+        result = self.results.get(key)
+        if result is None or result.band is None:
+            return None
+        labels = [b.label for b in result.definition.bands]
+        index = labels.index(result.band)
+        if index == 0:
+            return "low"
+        return "high" if index == len(labels) - 1 else "mid"
+
 
 Rule = Callable[[Facts], str | None]
 
 
 def _low_speed(f: Facts) -> str | None:
-    v, km = f.value("low_speed_street_share"), f.context("low_speed_street_share", "mapped_km")
+    key = "low_speed_street_share"
+    v, km, pos = f.value(key), f.context(key, "mapped_km"), f.position(key)
     if v is None or km is None:
         return None
-    if v >= 70:
+    if pos == "high":
         return (
             f"{v:.0f}% of the {km:.1f} km of carriageway with a mapped limit is 30 km/h or "
-            f"less — a calmed street network."
+            f"less — a higher share than two thirds of Eixample's 250 m cells."
         )
-    if v < 40:
+    if pos == "low":
         return (
             f"Only {v:.0f}% of the {km:.1f} km of carriageway with a mapped limit is 30 km/h "
-            f"or less; most of it is posted at 50."
+            f"or less — a lower share than two thirds of Eixample's 250 m cells."
         )
     return (
         f"{v:.0f}% of the {km:.1f} km of carriageway with a mapped limit is 30 km/h or "
-        f"less — a mix of calmed streets and 50 km/h corridors."
+        f"less — the middle third of Eixample's 250 m cells."
     )
+
+
+# Chosen (NOTES.md): below this share of carriageway with a mapped limit, the speed KPI
+# rests on a minority of the streets and the reader is told so.
+LIMIT_COVERAGE_WARN = 75.0
 
 
 def _limit_coverage(f: Facts) -> str | None:
     cov = f.context("low_speed_street_share", "limit_coverage")
-    if cov is None or cov >= 75:
+    if cov is None or cov >= LIMIT_COVERAGE_WARN:
         return None
     return (
         f"Only {cov:.0f}% of the carriageway here has a mapped speed limit, so the speed "
@@ -90,64 +110,67 @@ def _green(f: Facts) -> str | None:
         return None
     if v <= 300:
         return (
-            f"Half of the {n:,} buildings are within {v:.0f} m of a green space of at least "
-            f"0.5 ha — inside the WHO 300 m rule of thumb ({share:.0f}% are)."
+            f"Half of the {n:,} buildings are within {v:.0f} m of a public green space of at "
+            f"least 0.5 ha — inside the WHO 300 m rule of thumb ({share:.0f}% are)."
         )
     within = "none" if share == 0 else f"only {share:.0f}%"
     return (
-        f"The median building is {v:.0f} m from the nearest green space of at least 0.5 "
-        f"ha; {within} of the {n:,} buildings are within the WHO 300 m rule of thumb."
+        f"The median building is {v:.0f} m from the nearest public green space of at least "
+        f"0.5 ha; {within} of the {n:,} buildings are within the WHO 300 m rule of thumb."
     )
 
 
 def _crossings(f: Facts) -> str | None:
-    v, n = f.value("crossing_density"), f.context("crossing_density", "crossings")
-    if v is None or n is None:
+    key = "crossing_density"
+    v, n, pos = f.value(key), f.context(key, "crossings"), f.position(key)
+    if v is None or n is None or v <= 0:
         return None
-    if v < 10:
+    if pos == "low":
         return (
-            f"{n:.0f} mapped crossings give {v:.1f} per km of carriageway — sparse crossing "
-            f"provision for pedestrians."
+            f"{n:.0f} mapped crossings give {v:.1f} per km of carriageway — one every "
+            f"{1000 / v:.0f} m, fewer than in two thirds of Eixample's 250 m cells."
         )
-    if v >= 20:
+    if pos == "high":
         return (
-            f"{n:.0f} mapped crossings give {v:.1f} per km of carriageway — one roughly "
-            f"every {1000 / v:.0f} m."
+            f"{n:.0f} mapped crossings give {v:.1f} per km of carriageway — one every "
+            f"{1000 / v:.0f} m, more than in two thirds of Eixample's 250 m cells."
         )
     return None
 
 
 def _pedestrian(f: Facts) -> str | None:
-    v, km = (
-        f.value("pedestrian_network_share"),
-        f.context("pedestrian_network_share", "pedestrian_km"),
-    )
+    key = "pedestrian_network_share"
+    v, km, pos = f.value(key), f.context(key, "pedestrian_km"), f.position(key)
     if v is None or km is None:
         return None
-    if v >= 60:
+    if pos == "high":
         return (
-            f"{v:.0f}% of the mapped network ({km:.1f} km) is pedestrian-only — walking "
-            f"infrastructure dominates."
+            f"{v:.0f}% of the street network ({km:.1f} km) is pedestrian-only space — more "
+            f"than in two thirds of Eixample's 250 m cells."
         )
-    if v < 30:
+    if pos == "low":
         return (
-            f"Only {v:.0f}% of the mapped network ({km:.1f} km) is pedestrian-only; the area "
-            f"is laid out for vehicles."
+            f"Only {v:.0f}% of the street network ({km:.1f} km) is pedestrian-only space — "
+            f"less than in two thirds of Eixample's 250 m cells."
         )
     return None
 
 
 def _trees(f: Facts) -> str | None:
-    v, n = f.value("street_tree_density"), f.context("street_tree_density", "trees")
+    key = "street_tree_density"
+    v, n, pos = f.value(key), f.context(key, "trees"), f.position(key)
     if v is None or n is None:
         return None
-    if v >= 50:
+    if pos == "high" and v > 0:
         return (
             f"{n:.0f} mapped street trees, {v:.0f} per km of carriageway — one roughly every "
-            f"{1000 / v:.0f} m."
+            f"{1000 / v:.0f} m, more than in two thirds of Eixample's 250 m cells."
         )
-    if v < 20:
-        return f"Only {n:.0f} mapped street trees, {v:.0f} per km of carriageway."
+    if pos == "low":
+        return (
+            f"Only {n:.0f} mapped street trees, {v:.0f} per km of carriageway — fewer than "
+            f"in two thirds of Eixample's 250 m cells."
+        )
     return None
 
 

@@ -26,7 +26,7 @@ WITH population AS (
 targets AS (
     SELECT g.geom_m
     FROM green_spaces g
-    WHERE g.is_who_size
+    WHERE g.is_who_size AND (g.subtype, g.class) IN (SELECT * FROM public_green_classes)
 ),
 nearest AS (
     SELECT p.id,
