@@ -227,6 +227,8 @@ Numbers live **once**, in TanStack Query keyed by the area. The store holds sele
 
 ---
 
+<!-- _class: dense -->
+
 # Decisions, and what they beat
 
 | Chosen | Rejected | Why |
@@ -237,7 +239,27 @@ Numbers live **once**, in TanStack Query keyed by the area. The store holds sele
 | **Prepared extract, public data repo** | Commit it, or hit S3 | Script committed, data not; running in 15 minutes |
 | **OpenFreeMap basemap** | No basemap | Cartographic context only; no KPI reads it |
 
-<div class="cols">
+<div class="cols cols--wide-left">
+<div>
+
+```sql
+WITH clipped AS (              -- area = drawn ∩ district
+  SELECT max_speed_kmh,
+         CASE WHEN ST_CoveredBy(geom_m, area_m())
+              THEN length_m                -- wholly inside
+              ELSE ST_Length(
+                ST_Intersection(geom_m, area_m()))
+         END AS len_m
+  FROM segments
+  WHERE is_carriageway
+    AND ST_Intersects(geom_m, area_m())
+)
+SELECT 100.0 * sum(len_m) FILTER (WHERE max_speed_kmh <= 30)
+     / nullif(sum(len_m) FILTER (WHERE max_speed_kmh IS NOT NULL), 0)
+FROM clipped;        -- …breakdown and context omitted
+```
+
+</div>
 <div>
 
 | Area binding | Plan | District |
@@ -247,18 +269,14 @@ Numbers live **once**, in TanStack Query keyed by the area. The store holds sele
 | Prepared `?` | RTREE | 5.6 ms |
 | **Macro over `SET VARIABLE`** | RTREE | **3.6 ms** |
 
-</div>
-<div>
-
-### DuckDB pays off only if the R-tree is used
-
-Measured with `EXPLAIN`: the index is used only when the predicate argument is **constant at
-plan time**. Hence a macro over a session variable, registered **once per request**.
-
-**No Python loop ever touches a geometry** — one SQL statement per KPI.
+Measured with `EXPLAIN`: DuckDB uses the R-tree only when the predicate argument is
+**constant at plan time** — hence a macro over a session variable, registered **once per
+request**.
 
 </div>
 </div>
+
+**No Python loop over features** — and the denominator is visible in the query.
 
 ---
 

@@ -194,3 +194,25 @@ img {
   border: 1px solid var(--line);
   border-radius: 6px;
 }
+
+/* The decisions slide carries three blocks; it needs tighter type than the rest. */
+section.dense table {
+  font-size: 17px;
+}
+section.dense td,
+section.dense th {
+  padding: 4px 14px 4px 0;
+}
+section.dense pre {
+  margin: 0;
+}
+section.dense pre code {
+  font-size: 14px;
+  line-height: 1.35;
+}
+section.dense h3 {
+  margin: 0 0 6px;
+}
+section.dense p {
+  margin: 8px 0 0;
+}
