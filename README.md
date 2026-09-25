@@ -23,12 +23,16 @@ Measured timings: cold `docker compose up --build` on a machine with no cached i
 pulling from Overture's S3 bucket. Re-verified end to end on 2026-09-25 from a fresh clone
 with empty volumes.
 
+**Two links that reproduce the walkthrough's comparison** (the drawn area lives in the URL):
+**A — Sant Antoni superblock:** `http://localhost:5173/?area=2.15326,41.38205,2.15668,41.38457,2.16331,41.37945,2.15989,41.37693`
+**B — Aragó corridor:** `http://localhost:5173/?area=2.17846,41.40463,2.18181,41.40206,2.17503,41.39706,2.17168,41.39963`
+
 What you should see: before step 2 the page says *Warehouse not loaded — run `make
 load-data`*; after it, without restarting anything, the map shows the district outline with
 its streets coloured by posted speed and the dashboard reads **50.7 %** on the first card.
 Press **Draw area**, click a few points, click the first point to close: every card
-recomputes for the polygon (under a second), the district stays underneath as dimmed context, and
-**Clear drawing** brings the district back. Click a card to switch the map layer, a chart
+recomputes for the polygon (under a second), the district stays underneath as dimmed
+context, and **Clear drawing** brings the district back. Click a card to switch the map layer, a chart
 bar or legend chip to emphasise that category, a street or point to see its contribution.
 
 | URL | What |
@@ -115,9 +119,7 @@ on 5432 cannot collide with this stack; reach the container's with
   band boundary was derived (grid, minimum denominator, P33/P67), and the sidewalk-coverage
   measurement that changed the pedestrian KPI's definition.
 - [`docs/reference-areas/`](docs/reference-areas/) — the two polygons behind the A/B table in
-  NOTES. The drawn area lives in the URL, so open them directly:
-  **A, Sant Antoni superblock:** `http://localhost:5173/?area=2.15326,41.38205,2.15668,41.38457,2.16331,41.37945,2.15989,41.37693`
-  **B, Aragó corridor:** `http://localhost:5173/?area=2.17846,41.40463,2.18181,41.40206,2.17503,41.39706,2.17168,41.39963`
+  [`NOTES.md`](NOTES.md); their links are in Setup above.
 - [`backend/warehouse/connection.py`](backend/warehouse/connection.py) — one connection per
   process, a cursor per request, and a stat-guarded reopen so `make load-data` and rebuilds
   are picked up by a running server.
@@ -129,7 +131,7 @@ on 5432 cannot collide with this stack; reach the container's with
 
 ## Tests
 
-`make test` runs both suites inside the containers (40 backend, 33 frontend; nothing hits
+`make test` runs both suites inside the containers (40 backend, 49 frontend; nothing hits
 the network or needs the real extract).
 
 - The test that pins a KPI computation:
@@ -139,7 +141,9 @@ the network or needs the real extract).
   has one.
 - The frontend test: [`frontend/tests/App.test.tsx`](frontend/tests/App.test.tsx) — with MSW
   mocking the API, setting a drawn area in the store updates every card to the new values,
-  clearing returns to the district, and `sample_size: 0` renders the empty state.
+  clearing returns to the district, and `sample_size: 0` renders the empty state. Its
+  fixtures are real responses captured from the running app, so the numbers it asserts are
+  the ones on screen.
 - Also: a real-district regression pinning all five values to two decimals, a two-thread
   isolation test on the shared connection, the 503 → build → 200 and rebuild → new numbers
   paths, every 422 case, cache invalidation on an admin edit, and the pure seams (draw
