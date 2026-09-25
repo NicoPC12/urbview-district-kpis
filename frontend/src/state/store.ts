@@ -9,6 +9,8 @@
 import type { Polygon } from 'geojson';
 import { create } from 'zustand';
 
+import { areaFromSearch } from '@/lib/areaUrl';
+
 /** The whole district, or a polygon the user drew (EPSG:4326). */
 export type AreaSelection =
   { kind: 'district'; slug: string } | { kind: 'drawn'; geometry: Polygon };
@@ -45,8 +47,20 @@ export const districtArea = (slug = DEFAULT_DISTRICT_SLUG): AreaSelection => ({
   slug,
 });
 
+/**
+ * The area the app opens on: whatever `?area=` names, else the district.
+ *
+ * Read here rather than in an effect. Effects of one commit all see the area from the render
+ * that queued them, so a hook that read the URL into the store would still leave the
+ * URL-writing effect holding this default — and it would push that over the incoming
+ * parameter. See `features/area/useAreaUrl`.
+ */
+function initialArea(): AreaSelection {
+  return areaFromSearch(window.location.search) ?? districtArea();
+}
+
 export const useAppStore = create<AppState>()((set) => ({
-  area: districtArea(),
+  area: initialArea(),
   activeKpiKey: null,
   selectedCategory: null,
   selectedFeatureId: null,

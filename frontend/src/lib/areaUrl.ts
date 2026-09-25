@@ -1,17 +1,19 @@
 /**
- * The area in the URL, so a view can be linked, bookmarked and screenshotted reproducibly.
+ * The area codec for `?area=`, so a view can be linked, bookmarked and screenshotted.
  *
  * Encoding: `?area=<lon>,<lat>,<lon>,<lat>,…` with coordinates rounded to 5 decimals (~1 m,
  * the precision the API serves) and the closing point dropped. A block-sized polygon is
  * ~90 characters — short enough to read and to paste into a deck. No `area` parameter means
  * the whole district, so the plain URL stays clean.
  *
- * Pure functions: the hook that wires them to the store and to `history` is `useAreaUrl`.
+ * It lives in `lib/` and imports only the *type* of an area selection, which is erased at
+ * runtime: `state/store` initialises itself from the URL, and a value import here would make
+ * that a circular one. The hook that wires this to history is `features/area/useAreaUrl`.
  */
 
 import type { Polygon } from 'geojson';
 
-import { type AreaSelection, districtArea } from '@/state/store';
+import type { AreaSelection } from '@/state/store';
 
 export const AREA_PARAM = 'area';
 
@@ -32,34 +34,35 @@ export function encodeArea(area: AreaSelection): string | null {
 }
 
 /**
- * Parse an `?area=` value back into a selection.
+ * Parse an `?area=` value into a drawn selection.
  *
- * Returns the district for a missing, empty or malformed value: a broken link should open
- * the app, not an error page. The backend still validates the polygon it gets.
+ * Returns `null` for a missing, empty or malformed value — a broken link should open the
+ * app on the district, not an error page. The caller supplies that fallback. The backend
+ * still validates the polygon it is sent.
  */
-export function decodeArea(value: string | null): AreaSelection {
-  if (value === null || value.trim() === '') return districtArea();
+export function decodeArea(value: string | null): AreaSelection | null {
+  if (value === null || value.trim() === '') return null;
   const numbers = value.split(',').map(Number);
   if (numbers.length < 6 || numbers.length % 2 !== 0 || numbers.some((n) => !Number.isFinite(n))) {
-    return districtArea();
+    return null;
   }
   const ring: [number, number][] = [];
   for (let i = 0; i < numbers.length; i += 2) {
     const lon = numbers[i];
     const lat = numbers[i + 1];
     if (lon === undefined || lat === undefined || Math.abs(lon) > 180 || Math.abs(lat) > 90) {
-      return districtArea();
+      return null;
     }
     ring.push([lon, lat]);
   }
   const first = ring[0];
-  if (first === undefined) return districtArea();
+  if (first === undefined) return null;
   const geometry: Polygon = { type: 'Polygon', coordinates: [[...ring, first]] };
   return { kind: 'drawn', geometry };
 }
 
-/** The area a URL's search string selects. */
-export function areaFromSearch(search: string): AreaSelection {
+/** The area a URL's search string selects, or `null` when it names none. */
+export function areaFromSearch(search: string): AreaSelection | null {
   return decodeArea(new URLSearchParams(search).get(AREA_PARAM));
 }
 
@@ -67,4 +70,9 @@ export function areaFromSearch(search: string): AreaSelection {
 export function searchForArea(area: AreaSelection): string {
   const encoded = encodeArea(area);
   return encoded === null ? '' : `?${AREA_PARAM}=${encoded}`;
+}
+
+/** `pathname + search` for an area, i.e. what the address bar should read. */
+export function urlForArea(area: AreaSelection): string {
+  return `${window.location.pathname}${searchForArea(area)}`;
 }

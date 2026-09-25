@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PROMOTE_ID, toFeature, toFeatureCollection, toGeometry } from '@/api/geojson';
 import { finishDrawing } from '@/features/area/selection';
-import { areaFromSearch, searchForArea } from '@/features/area/url';
+import { areaFromSearch, searchForArea } from '@/lib/areaUrl';
 import {
   colorExpression,
   emphasisExpression,
@@ -257,7 +257,7 @@ describe('area in the URL', () => {
     ['?area=2.16,41.39,2.17,41.39,2.17', 'odd number of coordinates'],
     ['?area=2.16,41.39,2.17,nope,2.17,41.397', 'not a number'],
     ['?area=200,41.39,2.17,41.39,2.17,41.397', 'out of range'],
-  ])('falls back to the district for %s (%s)', (search) => {
-    expect(areaFromSearch(search)).toEqual(districtArea());
+  ])('names no area for %s (%s), leaving the fallback to the caller', (search) => {
+    expect(areaFromSearch(search)).toBeNull();
   });
 });
