@@ -13,9 +13,12 @@ make load-data              # 2. fetch the prepared Overture extract, build data
 Prerequisites: Docker Desktop and GNU `make` (Windows: `winget install GnuWin32.Make`, run
 from Git Bash). Python and Node run inside the containers.
 
-Measured on a machine with no cached images: cold `docker compose up --build` **2 min 50 s**
-(+ ~15 s until the backend has migrated); `make load-data` **9 s** from the release asset,
-or **~11 min** if it falls back to pulling from Overture's S3 bucket.
+Measured timings: cold `docker compose up --build` on a machine with no cached images
+**2 min 50 s**; with the base images already pulled but every layer rebuilt
+(`--no-cache`) **1 min 39 s**, plus **48 s** from `up` to both services answering.
+`make load-data` is **8–9 s** from the release asset, or **~11 min** if it falls back to
+pulling from Overture's S3 bucket. Re-verified end to end on 2026-09-25 from a fresh clone
+with empty volumes.
 
 What you should see: before step 2 the page says *Warehouse not loaded — run `make
 load-data`*; after it, without restarting anything, the map shows the district outline with
