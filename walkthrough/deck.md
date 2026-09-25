@@ -40,7 +40,10 @@ with a **known intervention** to test against: the Sant Antoni superblock.
 
 # The district read
 
-<div class="figures">
+<div class="cols cols--wide-right">
+<div>
+
+<div class="figures figures--stack">
 <div class="figure"><span class="value">50.7 %</span><span class="label">carriageway limited to 30 km/h (89 % has a mapped limit)</span></div>
 <div class="figure"><span class="value">22.6</span><span class="label">crossings per km of carriageway</span></div>
 <div class="figure"><span class="value">20.6 %</span><span class="label">street network that is pedestrian-only</span></div>
@@ -48,12 +51,18 @@ with a **known intervention** to test against: the Sant Antoni superblock.
 <div class="figure"><span class="value">55.4</span><span class="label">street trees per km of carriageway</span></div>
 </div>
 
+</div>
+<div>
+
+![w:660](assets/01-district.png)
+
 **Only 41 % of Eixample's 8,397 buildings are within 300 m of a public green space of at
 least 0.5 ha.** The WHO rule of thumb says they should be.
 
-![w:760](assets/01-district.png)
-
 <span class="small">The district reads "Middle third" on the four relative bands by construction — it *is* the distribution they were cut from.</span>
+
+</div>
+</div>
 
 ---
 
@@ -81,8 +90,8 @@ Same length and width, east of the axis
 </div>
 <div>
 
-![w:560](assets/02-area-a.png)
-![w:560](assets/03-area-b.png)
+![w:450](assets/02-area-a.png)
+![w:450](assets/03-area-b.png)
 
 </div>
 </div>
@@ -98,20 +107,20 @@ Same length and width, east of the axis
 <div class="cols">
 <div>
 
-![w:500](assets/05a-dashboard-to-map.png)
+![w:480](assets/05a-dashboard-to-map.png)
 
-**Dashboard → map.** Clicking the *≤ 30 km/h* bar emphasises those streets and dims the rest
-— no refetch, the layer is already loaded.
+**Dashboard → map.** Clicking *≤ 20 km/h* lights those streets and dims the rest — in area A,
+the living-street axes Comte Borrell and Consell de Cent. No refetch.
 
 <span class="small"><code>toggleCategory</code> → <code>emphasisExpression</code> → <code>setPaintProperty</code></span>
 
 </div>
 <div>
 
-![w:500](assets/05b-map-to-dashboard.png)
+![w:480](assets/05b-map-to-dashboard.png)
 
-**Map → dashboard.** Clicking a street names it and says what it contributes to the active
-KPI, from the loaded layer.
+**Map → dashboard.** Comte Borrell: *128 m posted ≤ 20 km/h, 2 % of the carriageway in this
+area* — computed from the loaded layer.
 
 <span class="small"><code>selectFeature</code> → <code>describeContribution</code> — one pure rule per KPI</span>
 
@@ -142,13 +151,10 @@ length, so marked crossings are removed. This KPI **falls** where a planner succ
 
 ### So there is no composite score
 
-Every card carries its own **does not claim** line, next to the number — not buried in a
-document.
+Every card carries its own **does not claim** line, next to the number. Adding the five into
+one index would destroy exactly the caveats that make them usable.
 
-<span class="note">Adding the five into one index would destroy exactly the caveats that make
-them usable.</span>
-
-![w:420](assets/04-not-claim.png)
+![w:470](assets/04-not-claim.png)
 
 </div>
 </div>
@@ -303,7 +309,7 @@ file silently. → drain cursors, close, then reopen.
 <div class="cols">
 <div>
 
-**Payload.** The district ships 6.0 MB of GeoJSON (1.1 MB gzipped). At 10× districts or 10×
+**Payload.** The district ships 5.1 MB of GeoJSON (0.98 MB gzipped). At 10× districts or 10×
 zoom, that becomes vector tiles: static geometry served once, per-request ids and values
 joined with `feature-state`.
 
@@ -323,7 +329,8 @@ district and repeats. Redis moves it off-process; the real win is the H3 precomp
 its own cursor per request. The connection layer is already shaped for that.
 
 **Latency.** Past ~2 s a synchronous request is wrong: job queue, return KPI values first,
-stream layers after. Today the district is 2.1 s cold, 0.4 s cached; a block is 0.35 s.
+stream layers after. Today the district is 2.4 s cold and 0.4 s cached; area A is 0.6 s
+and 0.04 s.
 
 </div>
 </div>

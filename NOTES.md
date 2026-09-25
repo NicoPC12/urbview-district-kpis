@@ -53,7 +53,7 @@ at 10 km/h for 1.62 km and 2.97 km respectively. **Two rows must not be read as 
 worse.** Crossings: Comte Borrell is shared space at 10 km/h, so the street is crossable
 along its length and marked crossings are no longer needed — this KPI *falls* where a
 planner has succeeded. Green: the Consell de Cent axis is linear greening, which a
-"≥ 0.5 ha polygon" rule cannot see by construction; B's 150 m is Sagrada Família's gardens.
+"≥ 0.5 ha polygon" rule cannot see by construction; B's 151 m is Sagrada Família's gardens.
 Both caveats are on the cards, and they are why there is no composite score.
 
 ## Rules that apply to every KPI

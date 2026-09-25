@@ -1,7 +1,10 @@
 # UrbView — district KPI dashboard
 
 A single page: a map of Barcelona's Eixample beside a KPI dashboard, where drawing a polygon
-recomputes every KPI for that polygon alone. Data source: Overture Maps, and nothing else.
+recomputes every KPI for that polygon alone. Data source: Overture Maps release
+`2026-08-19.0`, and nothing else.
+
+**Walkthrough deck: [`walkthrough/walkthrough.pdf`](walkthrough/walkthrough.pdf)** (12 slides).
 
 ## Setup
 
@@ -94,7 +97,7 @@ on 5432 cannot collide with this stack; reach the container's with
   number found in reconnaissance (NOTES "Rejected KPIs"): lamps measure mapping effort,
   transit has no spatial variance, land use covers 30 % of the district.
 - **Mobile layout** — see above.
-- **Vector tiles.** The district response is 6 MB raw / 1.1 MB gzipped; fine for one district,
+- **Vector tiles.** The district response is 5.1 MB raw / 0.98 MB gzipped; fine for one district,
   the wrong shape at 10×. Static geometry as tiles plus per-request ids is the walkthrough's
   answer, not this week's build.
 - **Async jobs.** Every request finishes under 3 s cold and 0.5 s cached; a queue would be
