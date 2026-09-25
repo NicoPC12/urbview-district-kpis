@@ -42,6 +42,13 @@ Other commands (`make help` lists them all): `make test`, `make lint`, `make typ
 (regenerate `frontend/src/api/schema.gen.ts`), `make extract` (real Overture S3 pull,
 ~10 min), `make warehouse` (rebuild from `data/raw/`), `make down`.
 
+**If 5173 or 8000 are already taken**, set `FRONTEND_PORT` / `BACKEND_PORT` (in the
+environment or a repo-root `.env`) and re-run — for example
+`FRONTEND_PORT=5174 BACKEND_PORT=8001 docker compose up --build`, then open the app on the
+port you chose. Postgres is not published to the host at all, so a database already running
+on 5432 cannot collide with this stack; reach the container's with
+`docker compose exec db psql -U urbview urbview`.
+
 ## What I built
 
 - **Pipeline** — [`backend/pipeline/`](backend/pipeline/): pinned Overture release, bbox

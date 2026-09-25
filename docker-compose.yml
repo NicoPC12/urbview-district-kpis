@@ -11,8 +11,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-urbview_dev}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    # Deliberately NOT published to the host: only `backend` talks to Postgres, over the
+    # compose network. A host binding would buy nothing and would fail `docker compose up`
+    # on any machine that already runs Postgres or another stack on 5432 — the first
+    # command of the documented setup. Reach it with `docker compose exec db psql …`.
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-urbview} -d ${POSTGRES_DB:-urbview}"]
       interval: 5s
@@ -38,7 +42,7 @@ services:
       - ./backend:/app
       - ./data:/data
     ports:
-      - "${BACKEND_HOST_PORT:-8000}:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -52,7 +56,7 @@ services:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
     ports:
-      - "${FRONTEND_HOST_PORT:-5173}:5173"
+      - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
       - backend
 
