@@ -2,9 +2,10 @@
  * The `?area=` integration, under StrictMode — the shape the browser actually runs.
  *
  * The pure codec is covered in `seams.test.ts`; these mount the real `App` with a URL in
- * `history` and assert what a reviewer sees: the drawn area's numbers, and an address bar
- * that still carries the parameter. A round-trip through the pure functions passed happily
- * while the feature was broken, so these go through the component tree instead.
+ * `history` and assert what a reviewer sees on the reference link: area A's own numbers,
+ * captured from the running API, and an address bar that still carries the parameter. A
+ * round-trip through the pure functions passed happily while the feature was broken, so
+ * these go through the component tree instead.
  */
 
 import { act, render, screen, waitFor } from '@testing-library/react';
@@ -52,11 +53,13 @@ describe('?area= in the address bar', () => {
     window.history.replaceState(null, '', A_SEARCH);
     renderApp();
 
-    // The drawn-area numbers, not the district's.
+    // Area A's numbers, not the district's — the same ones NOTES.md quotes for it.
     await waitFor(() => {
-      expect(screen.getByTestId('kpi-value-low_speed_street_share')).toHaveTextContent('88.2 %');
+      expect(screen.getByTestId('kpi-value-low_speed_street_share')).toHaveTextContent('63.6 %');
     });
-    expect(screen.getByTestId('overlap-note')).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-value-crossing_density')).toHaveTextContent('20.9/km');
+    expect(screen.getByTestId('kpi-value-green_space_distance_p50')).toHaveTextContent('595 m');
+    expect(screen.getByTestId('dashboard')).toHaveTextContent('0.32 km²');
     expect(useAppStore.getState().area.kind).toBe('drawn');
 
     // And the link is still shareable after mount: this is the assertion that failed while

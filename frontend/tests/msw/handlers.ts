@@ -2,15 +2,19 @@ import { http, HttpResponse } from 'msw';
 
 import type { KpiRequestRequest } from '@/api/schema.gen';
 
-import { district, districtResponse, drawnResponse } from '../fixtures/kpiResponse';
+import { areaAResponse, district, districtResponse } from '../fixtures/kpiResponse';
 
-/** Default mocked API: a built warehouse; the district and any drawn polygon answer. */
+/**
+ * Default mocked API, serving the two responses captured from the running app: the whole
+ * district for `{district: …}`, and reference area A for any polygon. Tests that draw use
+ * A's own polygon, so the numbers they assert are the ones the real app shows for that link.
+ */
 export const handlers = [
   http.get('/api/v1/health', () => HttpResponse.json({ status: 'ok', warehouse: true })),
   http.get('/api/v1/districts', () => HttpResponse.json([district])),
   http.post('/api/v1/kpis', async ({ request }) => {
     const body = (await request.json()) as KpiRequestRequest;
-    return HttpResponse.json(body.district !== undefined ? districtResponse : drawnResponse);
+    return HttpResponse.json(body.district !== undefined ? districtResponse : areaAResponse);
   }),
 ];
 

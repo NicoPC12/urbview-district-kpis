@@ -93,9 +93,9 @@ describe('geojson adapter', () => {
     if (layer === undefined) throw new Error('fixture has no layers');
     const collection = toFeatureCollection(layer.data);
     const first = collection.features[0];
-    expect(first?.id).toBe('seg-a');
-    expect(first?.properties[PROMOTE_ID]).toBe('seg-a');
-    expect(first?.properties.name).toBe("Carrer d'Aragó");
+    expect(first?.id).toBe('9ea11987-45a3-4f6b-ba9c-ec55d962398a');
+    expect(first?.properties[PROMOTE_ID]).toBe(first?.id);
+    expect(first?.properties.name).toBe('Plaça de Francesc Macià');
     expect(first?.geometry.type).toBe('LineString');
   });
 
@@ -120,13 +120,18 @@ describe('highlight expressions (dashboard → map)', () => {
   );
 
   it('colours by category from the legend with a fallback', () => {
+    // The five posted-speed categories the API returns for this KPI, in its own order.
     expect(colorExpression(legend)).toEqual([
       'match',
       ['get', 'category'],
+      'le20',
+      '#15803d',
       'le30',
       '#0f766e',
       'le50',
       '#b45309',
+      'gt50',
+      '#78350f',
       'none',
       '#94a3b8',
       '#94a3b8',

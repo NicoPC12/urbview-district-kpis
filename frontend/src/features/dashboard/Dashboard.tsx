@@ -21,6 +21,13 @@ import { FeaturePanel } from './FeaturePanel';
 import { KpiCard } from './KpiCard';
 import { Legend } from './Legend';
 
+/**
+ * Below this share of the drawing lying inside the district, the header says so. Not `< 1`:
+ * a polygon whose edge clips the boundary by a metre is 0.9997, which would round to
+ * "100 % of your drawing has data" and warn about nothing.
+ */
+const OVERLAP_NOTE_BELOW = 0.995;
+
 /** Area header, KPI cards, chart, legend, insights and the selected feature's contribution. */
 export function Dashboard() {
   const area = useAppStore((s) => s.area);
@@ -92,7 +99,7 @@ export function Dashboard() {
             </button>
           )}
         </div>
-        {data.area.district_overlap_share < 1 && (
+        {data.area.district_overlap_share < OVERLAP_NOTE_BELOW && (
           <p data-testid="overlap-note" className="mt-1 text-sm text-amber-800">
             {formatShare(data.area.district_overlap_share)} of your drawing has data — the numbers
             describe the part inside{' '}

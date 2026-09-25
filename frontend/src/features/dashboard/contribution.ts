@@ -34,7 +34,10 @@ function locate(layers: ApiLayer[], featureId: string): Located | null {
 }
 
 function categoryLabel(legend: LegendItem[], kpiKey: string, category: string): string {
-  return legend.find((i) => i.kpi_key === kpiKey && i.key === category)?.label ?? category;
+  // A KPI with a breakdown puts only its breakdown keys in the legend, so a single-category
+  // layer (`green_space`, `tree`) has no entry; humanise the key rather than print it raw.
+  const item = legend.find((i) => i.kpi_key === kpiKey && i.key === category);
+  return item?.label ?? category.replace(/_/g, ' ');
 }
 
 function shareOfLength(layer: ApiLayer, feature: ApiFeature): string {
